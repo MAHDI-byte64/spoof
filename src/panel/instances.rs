@@ -396,7 +396,7 @@ async fn ensure_template(state: &Arc<PanelState>) -> std::io::Result<()> {
     let unit = format!(
         "[Unit]\n\
          Description=CandyTunnel instance %i\n\
-         Documentation=https://github.com/AmiRCandy/CandyTunnel\n\
+         Documentation=https://github.com/MAHDI-byte64/spoof\n\
          After=network-online.target\n\
          Wants=network-online.target\n\
          StartLimitIntervalSec=60\n\

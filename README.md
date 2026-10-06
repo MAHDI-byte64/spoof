@@ -5,8 +5,8 @@
 <p><strong>High-performance bidirectional IP-spoofing tunnel for heavily censored networks</strong></p>
 
 <p>
-  <a href="https://github.com/AmiRCandy/CandyTunnel/releases/latest"><img src="https://img.shields.io/github/v/release/AmiRCandy/CandyTunnel?style=flat-square&color=ff69b4&label=latest%20release" alt="Latest Release"></a>
-  <a href="https://github.com/AmiRCandy/CandyTunnel/actions"><img src="https://img.shields.io/github/actions/workflow/status/AmiRCandy/CandyTunnel/build-release.yml?style=flat-square&label=build" alt="Build Status"></a>
+  <a href="https://github.com/MAHDI-byte64/spoof/releases/latest"><img src="https://img.shields.io/github/v/release/MAHDI-byte64/spoof?style=flat-square&color=ff69b4&label=latest%20release" alt="Latest Release"></a>
+  <a href="https://github.com/MAHDI-byte64/spoof/actions"><img src="https://img.shields.io/github/actions/workflow/status/MAHDI-byte64/spoof/build-release.yml?style=flat-square&label=build" alt="Build Status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/language-Rust-orange?style=flat-square" alt="Rust">
   <img src="https://img.shields.io/badge/platform-Linux-lightgrey?style=flat-square" alt="Linux">
@@ -131,7 +131,7 @@ The fastest way to get started is the **Manager Script**. It downloads the lates
 
 ```bash
 # Download the manager script
-curl -fsSL https://raw.githubusercontent.com/AmiRCandy/CandyTunnel/main/scripts/candy-manager.sh \
+curl -fsSL https://raw.githubusercontent.com/MAHDI-byte64/spoof/main/scripts/candy-manager.sh \
   -o candy-manager.sh
 
 # Run the full guided setup (requires root)
