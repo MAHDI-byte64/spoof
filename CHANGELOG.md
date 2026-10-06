@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Per-packet spoofed-IP rotation** (`spoof_rotation`, on by default): each
+  outgoing packet takes the next address from `spoofed_ip_pool` round-robin, so
+  a per-IP rate/volume limit on the path hits each address only a fraction as
+  hard. `peer_spoofed_ip_pool` lists the addresses the peer rotates through, and
+  `spoofed_ip_file` / `peer_spoofed_ip_file` load pools from a file (single IPs,
+  CIDR blocks, and `a-b` ranges).
+- **Spoofed-IP tester** (`candy-tunnel tester {sender|receiver}`, and a panel
+  tab): one server forges probes from every candidate address, the other counts
+  what arrives per source and reports loss against a threshold. TCP SYN, UDP and
+  ICMP probes; candidate lists accept single IPs, CIDR and `a-b` ranges.
+- **One-step panel setup**: a **connection code** exported from the server
+  tunnel that the client imports to fill in every shared setting automatically;
+  a simple quick-add form with real-IP / interface auto-detect; and a per-tunnel
+  spoofed-IP list editor. One-line installer at `scripts/install.sh`.
+- **Panel redesign**: Persian/RTL by default with an English (LTR) toggle, dark
+  and light themes, and an accent picker.
+
+### Changed / Fixed
+- **Peer allow-check honours the pool** — `is_peer_allowed` now accepts every
+  `peer_spoofed_ip_pool` member, so a peer rotating its source IP is not dropped
+  by the app-level guard (previously only the primary peer IP passed, which
+  silently dropped all rotated DATA packets).
+- **Handshake wakeup** — `wait_established` registers its event listener before
+  checking tunnel state, closing a lost-wakeup window that could delay a
+  handshake by a full retransmit slice.
+- `send_threads` now defaults to **1** so packets leave in order (several send
+  threads draining one queue let packets overtake each other, which TCP inside
+  the tunnel reads as loss).
+
 ## v4.2.0
 
 ### Added
