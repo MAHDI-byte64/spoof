@@ -57,10 +57,6 @@ const TLS_RECORD_TYPE: u8 = 0x17;
 const TLS_VERSION: [u8; 2] = [0x03, 0x03];
 /// DSCP value pool: 0=default, 0x28=AF11 (assured forwarding), 0x10=CS1.
 const DSCP_POOL: [u8; 3] = [0x00, 0x28, 0x10];
-/// Magic byte that marks a padding-suffixed frame on the wire.
-/// The last byte of a padded payload is the pad length (1–255).
-/// This is stripped by the receiver before decoding.
-const PAD_MARKER_SHIFT: u8 = 0; // pad_len stored as the last byte
 
 /// Fast wrapping counter for IPv4 identification field.
 /// Avoids calling `rand::random()` on every outgoing packet.

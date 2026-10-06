@@ -1,3 +1,7 @@
+// The crate is published as `CandyTunnel` (PascalCase) for brand consistency;
+// silence the conventional snake_case lint rather than rename every `use`.
+#![allow(non_snake_case)]
+
 // Use mimalloc as the global allocator for significantly faster multi-threaded
 // allocation throughput compared to the system allocator.
 #[global_allocator]
@@ -17,3 +21,4 @@ pub mod port_forward;
 pub mod tuning;
 pub mod logging;
 pub mod check;
+pub mod panel;

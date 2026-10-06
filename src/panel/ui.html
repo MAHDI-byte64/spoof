@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CandyTunnel Panel</title>
+<style>
+  :root{
+    --bg:#0b0d12; --bg2:#11141b; --card:#161a23; --card2:#1c212c;
+    --line:#262c39; --txt:#e7ecf3; --dim:#97a1b2; --muted:#6b7483;
+    --pink:#ff5fa2; --pink2:#ff85ba; --cyan:#43d6c7; --amber:#ffc24b;
+    --green:#3ddc84; --red:#ff5d6c; --accent:var(--pink);
+    --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35);
+    --font:"Segoe UI",Roboto,system-ui,"Vazirmatn","Noto Sans Arabic",sans-serif;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f6fb; --bg2:#eef1f8; --card:#ffffff; --card2:#f7f9fe;
+    --line:#e2e7f0; --txt:#131720; --dim:#5c6678; --muted:#8b94a6;
+    --shadow:0 10px 30px rgba(30,40,70,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:
+      radial-gradient(1200px 600px at 100% -10%, rgba(255,95,162,.12), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(67,214,199,.10), transparent 55%),
+      var(--bg);
+    color:var(--txt);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--pink2);text-decoration:none}
+  .hidden{display:none !important}
+
+  /* ── Top bar ── */
+  header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
+    padding:12px 20px;background:rgba(11,13,18,.72);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line)}
+  :root[data-theme="light"] header{background:rgba(255,255,255,.72)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:.2px}
+  .brand .logo{font-size:24px;filter:drop-shadow(0 2px 6px rgba(255,95,162,.5))}
+  .brand small{font-weight:600;color:var(--dim);font-size:12px;padding:2px 8px;border:1px solid var(--line);border-radius:20px}
+  .spacer{flex:1}
+  .iconbtn{cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--txt);
+    border-radius:10px;padding:7px 12px;font-size:13px;font-weight:600;transition:.15s;display:inline-flex;gap:6px;align-items:center}
+  .iconbtn:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ── Layout ── */
+  .wrap{max-width:1120px;margin:0 auto;padding:22px 20px 60px}
+  nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
+  nav.tabs button{cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dim);
+    padding:9px 16px;border-radius:12px;font-weight:700;font-size:14px;transition:.15s;font-family:inherit}
+  nav.tabs button:hover{color:var(--txt);background:var(--card)}
+  nav.tabs button.active{color:#fff;background:linear-gradient(135deg,var(--pink),#d94f8f);box-shadow:0 6px 16px rgba(255,95,162,.3)}
+  :root[data-theme="light"] nav.tabs button.active{color:#fff}
+
+  .card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+    border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);margin-bottom:18px}
+  .card h2{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:8px}
+  .card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+
+  .grid{display:grid;gap:14px}
+  .grid.cols{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+  .stat{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .stat .v{font-size:22px;font-weight:800;margin-top:4px}
+  .stat .v small{font-size:13px;color:var(--dim);font-weight:600}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:start;padding:11px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+  tbody tr:hover{background:var(--card2)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid var(--line)}
+  .pill .dot{width:8px;height:8px;border-radius:50%}
+  .pill.on{color:var(--green);border-color:rgba(61,220,132,.35)} .pill.on .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .pill.off{color:var(--muted)} .pill.off .dot{background:var(--muted)}
+  .pill.bad{color:var(--red);border-color:rgba(255,93,108,.35)} .pill.bad .dot{background:var(--red)}
+  .pill.warn{color:var(--amber);border-color:rgba(255,194,75,.35)} .pill.warn .dot{background:var(--amber)}
+
+  .btn{cursor:pointer;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;
+    font-family:inherit;transition:.15s;color:#fff;background:linear-gradient(135deg,var(--pink),#d94f8f)}
+  .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn:active{transform:none}
+  .btn.ghost{background:var(--card);color:var(--txt);border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--accent);color:var(--accent);filter:none}
+  .btn.sm{padding:6px 11px;font-size:12px}
+  .btn.danger{background:linear-gradient(135deg,#ff5d6c,#d6424f)}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
+  .rowbtns{display:flex;gap:6px;flex-wrap:wrap}
+
+  label.field{display:block;margin-bottom:2px}
+  .field .lab{display:block;font-size:12.5px;color:var(--dim);font-weight:600;margin-bottom:5px}
+  input,select,textarea{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--txt);
+    border-radius:10px;padding:9px 11px;font-size:14px;font-family:inherit;transition:.15s}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,95,162,.15)}
+  textarea{resize:vertical;min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+  .switch{display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 0}
+  .switch input{display:none}
+  .track{width:42px;height:24px;border-radius:20px;background:var(--line);position:relative;transition:.2s;flex:none}
+  .track::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+  .switch input:checked + .track{background:linear-gradient(135deg,var(--pink),#d94f8f)}
+  .switch input:checked + .track::after{inset-inline-start:21px}
+
+  .formgroup{border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
+  .formgroup > summary{cursor:pointer;padding:12px 16px;font-weight:700;background:var(--card2);list-style:none;display:flex;align-items:center;gap:8px}
+  .formgroup > summary::-webkit-details-marker{display:none}
+  .formgroup > summary .chev{margin-inline-start:auto;color:var(--muted);transition:.2s}
+  .formgroup[open] > summary .chev{transform:rotate(90deg)}
+  .formgroup .body{padding:16px;display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+  .formgroup .body .full{grid-column:1/-1}
+
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  pre.logs{background:#07090d;border:1px solid var(--line);border-radius:12px;padding:14px;max-height:460px;
+    overflow:auto;font-size:12.5px;line-height:1.55;color:#cdd6e4;white-space:pre-wrap;word-break:break-word}
+  :root[data-theme="light"] pre.logs{background:#0b0d12;color:#cdd6e4}
+
+  /* ── Login ── */
+  .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login .box{width:100%;max-width:380px;text-align:center}
+  .login .logo{font-size:56px;filter:drop-shadow(0 6px 20px rgba(255,95,162,.5))}
+  .login h1{margin:10px 0 2px;font-size:26px}
+  .login p{color:var(--muted);margin:0 0 24px}
+  .login .card{text-align:start}
+
+  .toast{position:fixed;inset-block-end:22px;inset-inline-end:22px;z-index:50;display:flex;flex-direction:column;gap:10px}
+  .toast .t{background:var(--card);border:1px solid var(--line);border-inline-start:3px solid var(--accent);
+    border-radius:10px;padding:12px 16px;box-shadow:var(--shadow);min-width:240px;animation:slide .25s ease}
+  .toast .t.ok{border-inline-start-color:var(--green)} .toast .t.err{border-inline-start-color:var(--red)}
+  @keyframes slide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .spin{display:inline-block;width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .empty{text-align:center;color:var(--muted);padding:34px 10px}
+  .ranknum{color:var(--muted);font-variant-numeric:tabular-nums}
+  .lat-good{color:var(--green);font-weight:700}
+  .lat-mid{color:var(--amber);font-weight:700}
+  .lat-bad{color:var(--red);font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- ───────────────────────── LOGIN ───────────────────────── -->
+<div id="login" class="login hidden">
+  <div class="box">
+    <div class="logo">🍬</div>
+    <h1>CandyTunnel</h1>
+    <p data-i18n="login_sub">Web Management Panel</p>
+    <div class="card">
+      <label class="field">
+        <span class="lab" data-i18n="password">Password</span>
+        <input id="loginPw" type="password" autocomplete="current-password" autofocus>
+      </label>
+      <button class="btn" style="width:100%;margin-top:8px" id="loginBtn" data-i18n="sign_in">Sign in</button>
+      <div style="display:flex;justify-content:center;gap:14px;margin-top:14px">
+        <span class="iconbtn" id="loginLang">فارسی</span>
+        <span class="iconbtn" id="loginTheme">🌓</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────── APP ───────────────────────── -->
+<div id="app" class="hidden">
+  <header>
+    <div class="brand"><span class="logo">🍬</span> CandyTunnel <small id="verTag">panel</small></div>
+    <div class="spacer"></div>
+    <span class="iconbtn" id="langBtn">فارسی</span>
+    <span class="iconbtn" id="themeBtn">🌓</span>
+    <span class="iconbtn" id="logoutBtn" data-i18n="logout">Logout</span>
+  </header>
+
+  <div class="wrap">
+    <nav class="tabs" id="tabs">
+      <button data-tab="dash" class="active" data-i18n="tab_dash">Dashboard</button>
+      <button data-tab="inst" data-i18n="tab_inst">Instances</button>
+      <button data-tab="iptest" data-i18n="tab_iptest">IP Tester</button>
+      <button data-tab="logs" data-i18n="tab_logs">Logs</button>
+    </nav>
+
+    <!-- Dashboard -->
+    <section id="tab-dash">
+      <div class="card">
+        <h2>🖥️ <span data-i18n="system">System</span></h2>
+        <div class="sub" data-i18n="system_sub">Host resources detected by CandyTunnel.</div>
+        <div class="grid cols" id="sysgrid"><div class="empty"><span class="spin"></span></div></div>
+      </div>
+      <div class="card">
+        <h2>🚇 <span data-i18n="tunnels_overview">Instances overview</span></h2>
+        <div class="sub" id="dashInstSub"></div>
+        <div id="dashInst"></div>
+      </div>
+    </section>
+
+    <!-- Instances -->
+    <section id="tab-inst" class="hidden">
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1">
+            <h2>🚇 <span data-i18n="tab_inst">Instances</span></h2>
+            <div class="sub" data-i18n="inst_sub">Create, configure and control tunnel instances.</div>
+          </div>
+          <button class="btn" id="newInstBtn">＋ <span data-i18n="new_instance">New</span></button>
+        </div>
+        <div id="instTable"></div>
+      </div>
+
+      <div class="card hidden" id="editCard">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <h2 style="flex:1" id="editTitle">✏️ <span data-i18n="edit_instance">Edit instance</span></h2>
+          <button class="btn ghost sm" id="closeEdit" data-i18n="close">Close</button>
+        </div>
+        <label class="field" style="max-width:320px;margin-bottom:12px">
+          <span class="lab" data-i18n="inst_name">Instance name</span>
+          <input id="f_name" placeholder="candy0">
+        </label>
+        <div id="formGroups"></div>
+        <div class="rowbtns" style="margin-top:8px">
+          <button class="btn" id="saveInst" data-i18n="save">Save</button>
+          <button class="btn ghost" id="cancelInst" data-i18n="cancel">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- IP tester -->
+    <section id="tab-iptest" class="hidden">
+      <div class="card">
+        <h2>🎯 <span data-i18n="tab_iptest">Spoofed-IP Tester</span></h2>
+        <div class="sub" data-i18n="iptest_sub">Measure which spoofed source IPs survive your path. The chosen client instance config decides transport, port and peer. Run the server with <code>--check-allow-any</code> first.</div>
+        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+          <label class="field"><span class="lab" data-i18n="instance">Instance</span><select id="t_inst"></select></label>
+          <label class="field"><span class="lab" data-i18n="timeout_ms">Timeout (ms)</span><input id="t_timeout" type="number" value="1500"></label>
+          <label class="field"><span class="lab" data-i18n="probes">Probes / IP</span><input id="t_probes" type="number" value="2"></label>
+          <label class="field"><span class="lab" data-i18n="workers">Workers</span><input id="t_workers" type="number" value="64"></label>
+        </div>
+        <label class="field" style="margin-top:12px">
+          <span class="lab" data-i18n="candidate_ips">Candidate IPs (one per line)</span>
+          <textarea id="t_ips" placeholder="8.8.8.8&#10;1.1.1.1&#10;208.67.222.222"></textarea>
+        </label>
+        <div class="rowbtns" style="margin-top:8px">
+          <button class="btn" id="runTest" data-i18n="run_test">Run test</button>
+          <span id="testStatus" style="align-self:center;color:var(--dim);font-size:13px"></span>
+        </div>
+      </div>
+      <div class="card hidden" id="testResultsCard">
+        <h2>📊 <span data-i18n="results">Results</span> <span id="testSummary" style="font-size:13px;color:var(--dim);font-weight:600"></span></h2>
+        <div id="testResults"></div>
+      </div>
+    </section>
+
+    <!-- Logs -->
+    <section id="tab-logs" class="hidden">
+      <div class="card">
+        <h2>📜 <span data-i18n="tab_logs">Logs</span></h2>
+        <div class="grid" style="grid-template-columns:1fr auto auto auto;align-items:end;gap:10px">
+          <label class="field"><span class="lab" data-i18n="instance">Instance</span><select id="l_inst"></select></label>
+          <label class="field" style="width:120px"><span class="lab" data-i18n="lines">Lines</span><input id="l_lines" type="number" value="150"></label>
+          <button class="btn" id="loadLogs" data-i18n="refresh">Refresh</button>
+          <label class="switch" title="auto"><input type="checkbox" id="l_auto"><span class="track"></span></label>
+        </div>
+        <pre class="logs" id="logsOut" style="margin-top:14px"></pre>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+// ───────────────────────── i18n ─────────────────────────
+const I18N = {
+  en:{login_sub:"Web Management Panel",password:"Password",sign_in:"Sign in",logout:"Logout",
+    tab_dash:"Dashboard",tab_inst:"Instances",tab_iptest:"IP Tester",tab_logs:"Logs",
+    system:"System",system_sub:"Host resources detected by CandyTunnel.",
+    tunnels_overview:"Instances overview",inst_sub:"Create, configure and control tunnel instances.",
+    new_instance:"New",edit_instance:"Edit instance",inst_name:"Instance name",save:"Save",cancel:"Cancel",close:"Close",
+    iptest_sub:"Measure which spoofed source IPs survive your path. The chosen client instance config decides transport, port and peer. Run the server with --check-allow-any first.",
+    instance:"Instance",timeout_ms:"Timeout (ms)",probes:"Probes / IP",workers:"Workers",
+    candidate_ips:"Candidate IPs (one per line)",run_test:"Run test",results:"Results",
+    lines:"Lines",refresh:"Refresh",
+    cores:"CPU cores",memory:"Memory",uptime:"Uptime",load:"Load avg",hostname:"Host",version:"Version",
+    name:"Name",role:"Role",transport:"Transport",mode:"Mode",status:"Status",boot:"Boot",actions:"Actions",
+    start:"Start",stop:"Stop",restart:"Restart",enable:"Enable",disable:"Disable",edit:"Edit",remove:"Remove",
+    active:"active",inactive:"inactive",spoofing:"spoofing",nospoof:"no-spoof",enabled:"enabled",disabled:"disabled",invalid:"invalid",
+    no_instances:"No instances yet. Create one to get started.",
+    saved:"Saved",deleted:"Deleted",confirm_remove:"Remove this instance? This stops and deletes it.",
+    login_fail:"Login failed",running:"Running…",done:"Done",reachable:"reachable",timeout:"timeout",
+    rank:"#",latency:"Latency",best:"Best",no_results:"No reachable IPs found.",
+    g_ident:"Identity & Addressing",g_transport:"Transport",g_mux:"Multiplexing & FEC",g_quic:"QUIC",
+    g_sec:"Security",g_dpi:"DPI Obfuscation",g_tun:"TUN & Forwarding",g_perf:"Performance",g_log:"Logging",
+    need_name:"Instance name required",pick_instance:"Pick an instance first",need_ips:"Enter at least one IP"},
+  fa:{login_sub:"پنل مدیریت تحت وب",password:"رمز عبور",sign_in:"ورود",logout:"خروج",
+    tab_dash:"داشبورد",tab_inst:"نمونه‌ها",tab_iptest:"تستر آی‌پی",tab_logs:"گزارش‌ها",
+    system:"سیستم",system_sub:"منابع سرور که CandyTunnel شناسایی کرده است.",
+    tunnels_overview:"نمای کلی نمونه‌ها",inst_sub:"ساخت، پیکربندی و کنترل نمونه‌های تانل.",
+    new_instance:"جدید",edit_instance:"ویرایش نمونه",inst_name:"نام نمونه",save:"ذخیره",cancel:"انصراف",close:"بستن",
+    iptest_sub:"بسنجید کدام آی‌پی‌های جعلی از مسیر شما عبور می‌کنند. پیکربندی نمونهٔ کلاینت انتخابی، پروتکل، پورت و مقصد را تعیین می‌کند. ابتدا سرور را با ‎--check-allow-any اجرا کنید.",
+    instance:"نمونه",timeout_ms:"مهلت (میلی‌ثانیه)",probes:"تعداد پروب / آی‌پی",workers:"کارگرها",
+    candidate_ips:"آی‌پی‌های کاندید (هر خط یکی)",run_test:"اجرای تست",results:"نتایج",
+    lines:"خطوط",refresh:"بازخوانی",
+    cores:"هسته‌های CPU",memory:"حافظه",uptime:"آپ‌تایم",load:"میانگین بار",hostname:"میزبان",version:"نسخه",
+    name:"نام",role:"نقش",transport:"پروتکل",mode:"حالت",status:"وضعیت",boot:"بوت",actions:"عملیات",
+    start:"شروع",stop:"توقف",restart:"ری‌استارت",enable:"فعال‌سازی بوت",disable:"غیرفعال بوت",edit:"ویرایش",remove:"حذف",
+    active:"فعال",inactive:"غیرفعال",spoofing:"جعل آی‌پی",nospoof:"بدون جعل",enabled:"فعال",disabled:"غیرفعال",invalid:"نامعتبر",
+    no_instances:"هنوز نمونه‌ای نیست. یکی بسازید تا شروع کنید.",
+    saved:"ذخیره شد",deleted:"حذف شد",confirm_remove:"این نمونه حذف شود؟ متوقف و پاک می‌شود.",
+    login_fail:"ورود ناموفق",running:"در حال اجرا…",done:"پایان",reachable:"قابل دسترس",timeout:"تایم‌اوت",
+    rank:"#",latency:"تأخیر",best:"بهترین",no_results:"هیچ آی‌پی قابل دسترسی پیدا نشد.",
+    g_ident:"هویت و آدرس‌دهی",g_transport:"پروتکل انتقال",g_mux:"مالتی‌پلکس و FEC",g_quic:"QUIC",
+    g_sec:"امنیت",g_dpi:"مبهم‌سازی DPI",g_tun:"TUN و فورواردینگ",g_perf:"کارایی",g_log:"گزارش‌گیری",
+    need_name:"نام نمونه لازم است",pick_instance:"ابتدا یک نمونه انتخاب کنید",need_ips:"حداقل یک آی‌پی وارد کنید"}
+};
+let LANG = localStorage.getItem("ct_lang") || "en";
+const t = k => (I18N[LANG][k] ?? I18N.en[k] ?? k);
+
+function applyLang(){
+  document.documentElement.lang = LANG;
+  document.documentElement.dir = LANG==="fa" ? "rtl" : "ltr";
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent = t(el.getAttribute("data-i18n")); });
+  const label = LANG==="fa" ? "English" : "فارسی";
+  const lb=document.getElementById("langBtn"); if(lb) lb.textContent=label;
+  const lb2=document.getElementById("loginLang"); if(lb2) lb2.textContent=label;
+  if(META) renderForm();           // re-render form labels
+  if(!document.getElementById("app").classList.contains("hidden")) refreshActive();
+}
+function toggleLang(){ LANG = LANG==="fa"?"en":"fa"; localStorage.setItem("ct_lang",LANG); applyLang(); }
+
+// ───────────────────────── theme ─────────────────────────
+let THEME = localStorage.getItem("ct_theme") || "dark";
+function applyTheme(){ document.documentElement.setAttribute("data-theme",THEME); }
+function toggleTheme(){ THEME = THEME==="dark"?"light":"dark"; localStorage.setItem("ct_theme",THEME); applyTheme(); }
+
+// ───────────────────────── toast ─────────────────────────
+function toast(msg,kind){
+  const box=document.getElementById("toast");
+  const el=document.createElement("div"); el.className="t "+(kind||"");
+  el.textContent=msg; box.appendChild(el);
+  setTimeout(()=>{el.style.opacity="0";el.style.transition="opacity .3s";setTimeout(()=>el.remove(),300)},2600);
+}
+
+// ───────────────────────── API ─────────────────────────
+async function api(method,path,body){
+  const opt={method,headers:{"X-CandyTunnel":"1"},credentials:"same-origin"};
+  if(body!==undefined){opt.headers["Content-Type"]="application/json";opt.body=JSON.stringify(body);}
+  const r=await fetch(path,opt);
+  let data=null; try{data=await r.json();}catch(e){}
+  if(r.status===401){ showLogin(); throw new Error("unauth"); }
+  if(!r.ok){ throw new Error((data&&data.error)||("HTTP "+r.status)); }
+  return data;
+}
+
+// ───────────────────────── auth / routing ─────────────────────────
+function showLogin(){ document.getElementById("app").classList.add("hidden"); document.getElementById("login").classList.remove("hidden"); setTimeout(()=>document.getElementById("loginPw").focus(),50); }
+function showApp(){ document.getElementById("login").classList.add("hidden"); document.getElementById("app").classList.remove("hidden"); gotoTab("dash"); }
+
+async function doLogin(){
+  const pw=document.getElementById("loginPw").value;
+  try{ await api("POST","/api/login",{password:pw}); document.getElementById("loginPw").value=""; showApp(); }
+  catch(e){ toast(t("login_fail"),"err"); }
+}
+async function doLogout(){ try{await api("POST","/api/logout");}catch(e){} showLogin(); }
+
+let CURRENT="dash";
+function gotoTab(tab){
+  CURRENT=tab;
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+  ["dash","inst","iptest","logs"].forEach(x=>document.getElementById("tab-"+x).classList.toggle("hidden",x!==tab));
+  refreshActive();
+}
+function refreshActive(){
+  if(CURRENT==="dash") loadDashboard();
+  else if(CURRENT==="inst") loadInstances();
+  else if(CURRENT==="iptest") loadInstancePickers();
+  else if(CURRENT==="logs") loadInstancePickers();
+}
+
+// ───────────────────────── dashboard ─────────────────────────
+function fmtUptime(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  return (d?d+"d ":"")+(h?h+"h ":"")+m+"m";}
+async function loadDashboard(){
+  try{
+    const sys=await api("GET","/api/system");
+    document.getElementById("verTag").textContent="v"+sys.binary_version;
+    const g=document.getElementById("sysgrid");
+    const stat=(k,v,sub)=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}${sub?` <small>${sub}</small>`:""}</div></div>`;
+    g.innerHTML =
+      stat(t("hostname"),esc(sys.hostname))+
+      stat(t("cores"),sys.cpu_cores)+
+      stat(t("memory"),sys.mem_available_gb.toFixed(1),"/ "+sys.mem_total_gb.toFixed(1)+" GB")+
+      stat(t("uptime"),fmtUptime(sys.uptime_secs))+
+      stat(t("load"),sys.load_avg.map(x=>x.toFixed(2)).join("  "))+
+      stat(t("version"),"v"+esc(sys.binary_version));
+  }catch(e){}
+  try{
+    const d=await api("GET","/api/instances");
+    const list=d.instances||[];
+    document.getElementById("dashInstSub").textContent =
+      list.length+" "+t("tab_inst").toLowerCase()+" · "+list.filter(i=>i.active).length+" "+t("active");
+    document.getElementById("dashInst").innerHTML = list.length? instTable(list,false) : `<div class="empty">${t("no_instances")}</div>`;
+  }catch(e){}
+}
+
+// ───────────────────────── instances table ─────────────────────────
+function statusPill(i){
+  if(!i.valid) return `<span class="pill bad"><span class="dot"></span>${t("invalid")}</span>`;
+  return i.active? `<span class="pill on"><span class="dot"></span>${t("active")}</span>`
+                 : `<span class="pill off"><span class="dot"></span>${t("inactive")}</span>`;
+}
+function instTable(list,withActions){
+  let rows=list.map(i=>{
+    const spoof = i.spoofing? `<span class="pill warn"><span class="dot"></span>${t("spoofing")}</span>`
+                            : `<span class="pill off"><span class="dot"></span>${t("nospoof")}</span>`;
+    const boot = i.enabled? `<span class="pill on"><span class="dot"></span>${t("enabled")}</span>`
+                          : `<span class="pill off"><span class="dot"></span>${t("disabled")}</span>`;
+    const transport = esc(i.uplink)+(i.uplink!==i.downlink? " / "+esc(i.downlink):"");
+    let acts="";
+    if(withActions){
+      const sa = i.active
+        ? `<button class="btn ghost sm" data-act="stop" data-n="${esc(i.name)}">${t("stop")}</button>
+           <button class="btn ghost sm" data-act="restart" data-n="${esc(i.name)}">${t("restart")}</button>`
+        : `<button class="btn sm" data-act="start" data-n="${esc(i.name)}">${t("start")}</button>`;
+      const be = i.enabled
+        ? `<button class="btn ghost sm" data-act="disable" data-n="${esc(i.name)}">${t("disable")}</button>`
+        : `<button class="btn ghost sm" data-act="enable" data-n="${esc(i.name)}">${t("enable")}</button>`;
+      acts=`<div class="rowbtns">${sa}${be}
+        <button class="btn ghost sm" data-edit="${esc(i.name)}">${t("edit")}</button>
+        <button class="btn danger sm" data-del="${esc(i.name)}">${t("remove")}</button></div>`;
+    }
+    return `<tr>
+      <td><b>${esc(i.name)}</b></td>
+      <td>${esc(i.role)}</td>
+      <td class="mono">${transport}</td>
+      <td>${spoof}</td>
+      <td>${statusPill(i)}</td>
+      <td>${boot}</td>
+      ${withActions?`<td>${acts}</td>`:""}</tr>`;
+  }).join("");
+  return `<table><thead><tr>
+    <th>${t("name")}</th><th>${t("role")}</th><th>${t("transport")}</th>
+    <th>${t("mode")}</th><th>${t("status")}</th><th>${t("boot")}</th>
+    ${withActions?`<th>${t("actions")}</th>`:""}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+async function loadInstances(){
+  const host=document.getElementById("instTable");
+  host.innerHTML=`<div class="empty"><span class="spin"></span></div>`;
+  try{
+    const d=await api("GET","/api/instances");
+    const list=d.instances||[];
+    host.innerHTML = list.length? instTable(list,true) : `<div class="empty">${t("no_instances")}</div>`;
+    host.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>doAction(b.dataset.n,b.dataset.act));
+    host.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openEdit(b.dataset.edit));
+    host.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>doDelete(b.dataset.del));
+  }catch(e){ host.innerHTML=`<div class="empty">${esc(e.message)}</div>`; }
+}
+async function doAction(name,action){
+  try{ await api("POST",`/api/instances/${encodeURIComponent(name)}/action`,{action}); toast(action+" ✓","ok"); setTimeout(loadInstances,400); }
+  catch(e){ toast(esc(e.message),"err"); }
+}
+async function doDelete(name){
+  if(!confirm(t("confirm_remove")+"\n\n"+name)) return;
+  try{ await api("DELETE",`/api/instances/${encodeURIComponent(name)}`); toast(t("deleted"),"ok"); loadInstances(); }
+  catch(e){ toast(esc(e.message),"err"); }
+}
+
+// ───────────────────────── form schema ─────────────────────────
+let META=null;
+const SEL=(key)=>({udp:["udp","icmp","proto58","tcp","quic","ipip","gre"],
+  perf:["throughput","latency","balanced"],log:["error","warn","info","debug","trace"],role:["client","server"]}[key]);
+function FORM(){return [
+ {g:"g_ident",f:[
+   ["role","select","role"],["real_ip","text"],["peer_real_ip","text"],
+   ["spoofed_ip","text"],["peer_spoofed_ip","text"],
+   ["spoofed_ip_pool","list"],["allowed_peers","list"]]},
+ {g:"g_transport",f:[
+   ["uplink_protocol","select","udp"],["downlink_protocol","select","udp"],
+   ["data_port","num"],["shuffle_data_port","bool"],["shuffle_port_min","num"],["shuffle_port_max","num"],
+   ["icmp_id","num"],["random_icmp_id","bool"]]},
+ {g:"g_mux",f:[
+   ["enable_multiplex","bool"],["multiplex_flush_ms","num"],["multiplex_max_payload","num"],
+   ["enable_fec","bool"],["fec_group_size","num"]]},
+ {g:"g_quic",f:[
+   ["quic_server_name","text"],["quic_cert","text"],["quic_key","text"],["quic_alpn","text"],
+   ["quic_idle_timeout_ms","num"],["quic_max_data","num"],["quic_max_stream_data","num"],["quic_max_streams_bidi","num"]]},
+ {g:"g_sec",f:[
+   ["pre_shared_key","text"],["enable_xor","bool"],["xor_key","text"]]},
+ {g:"g_dpi",f:[
+   ["packet_padding","bool"],["packet_padding_max","num"],["ttl_jitter","bool"],
+   ["fake_tls_header","bool"],["random_dscp","bool"]]},
+ {g:"g_tun",f:[
+   ["tun_name","text"],["tun_ip","text"],["tun_peer_ip","text"],["tun_netmask","text"],
+   ["tun_mtu","num"],["interface","text"],["forward_ports","ports"]]},
+ {g:"g_perf",f:[
+   ["perf_mode","select","perf"],["auto_tune","bool"],["tunnel_count","num"],["mtu","num"],
+   ["channel_capacity","num"],["io_channel_capacity","num"],["runtime_worker_threads","num"]]},
+ {g:"g_log",f:[["log_level","select","log"]]},
+];}
+const PRETTY=k=>k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+
+function renderForm(){
+  const host=document.getElementById("formGroups"); if(!host) return;
+  const openFirst = !host.dataset.ready;
+  host.innerHTML = FORM().map((grp,gi)=>{
+    const body=grp.f.map(([key,type,sel])=>{
+      const id="f_"+key; const label=PRETTY(key);
+      let input;
+      if(type==="bool"){
+        return `<label class="switch full" title="${key}"><input type="checkbox" id="${id}"><span class="track"></span><span>${label}</span></label>`;
+      }else if(type==="select"){
+        const opts=SEL(sel).map(o=>`<option value="${o}">${o}</option>`).join("");
+        input=`<select id="${id}">${opts}</select>`;
+      }else if(type==="num"){ input=`<input id="${id}" type="number">`; }
+      else if(type==="list"||type==="ports"){ input=`<input id="${id}" placeholder="a, b, c">`; }
+      else{ input=`<input id="${id}">`; }
+      return `<label class="field"><span class="lab">${label} <span style="color:var(--muted);font-weight:400">· ${key}</span></span>${input}</label>`;
+    }).join("");
+    return `<details class="formgroup" ${gi===0?"open":""}><summary>${t(grp.g)}<span class="chev">▸</span></summary><div class="body">${body}</div></details>`;
+  }).join("");
+  host.dataset.ready="1";
+  if(FORM_DATA) fillForm(FORM_DATA);
+}
+
+let FORM_DATA=null, EDIT_NAME=null;
+function fillForm(cfg){
+  FORM().forEach(grp=>grp.f.forEach(([key,type])=>{
+    const el=document.getElementById("f_"+key); if(!el) return;
+    let v=cfg[key];
+    if(type==="bool"){ el.checked=!!v; }
+    else if(type==="list"||type==="ports"){ el.value=Array.isArray(v)?v.join(", "):(v??""); }
+    else{ el.value=(v===undefined||v===null)?"":v; }
+  }));
+}
+function collectForm(){
+  const cfg={};
+  FORM().forEach(grp=>grp.f.forEach(([key,type])=>{
+    const el=document.getElementById("f_"+key); if(!el) return;
+    if(type==="bool") cfg[key]=el.checked;
+    else if(type==="num") cfg[key]=parseInt(el.value||"0",10)||0;
+    else if(type==="list") cfg[key]=el.value.split(",").map(s=>s.trim()).filter(Boolean);
+    else if(type==="ports") cfg[key]=el.value.split(",").map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
+    else cfg[key]=el.value;
+  }));
+  return cfg;
+}
+
+function openEditCard(){ document.getElementById("editCard").classList.remove("hidden"); document.getElementById("editCard").scrollIntoView({behavior:"smooth"}); }
+async function openEdit(name){
+  try{
+    const d=await api("GET","/api/instances/"+encodeURIComponent(name));
+    EDIT_NAME=name; FORM_DATA=d.config;
+    document.getElementById("f_name").value=name;
+    document.getElementById("f_name").disabled=true;
+    renderForm(); fillForm(d.config); openEditCard();
+  }catch(e){ toast(esc(e.message),"err"); }
+}
+function openNew(){
+  EDIT_NAME=null; FORM_DATA=null;
+  document.getElementById("f_name").value=""; document.getElementById("f_name").disabled=false;
+  const host=document.getElementById("formGroups"); host.dataset.ready=""; renderForm();
+  // defaults
+  fillForm({role:"client",uplink_protocol:"udp",downlink_protocol:"udp",data_port:51820,
+    enable_multiplex:true,multiplex_flush_ms:1,multiplex_max_payload:1380,fec_group_size:4,icmp_id:17185,
+    shuffle_port_min:49152,shuffle_port_max:65535,quic_server_name:"CandyTunnel",quic_alpn:"h3",
+    quic_idle_timeout_ms:30000,quic_max_data:134217728,quic_max_stream_data:16777216,quic_max_streams_bidi:256,
+    packet_padding_max:64,tun_name:"candy0",tun_netmask:"255.255.255.252",tun_mtu:1380,mtu:1380,interface:"eth0",
+    perf_mode:"throughput",auto_tune:true,tunnel_count:4,channel_capacity:8192,io_channel_capacity:16384,log_level:"info",
+    tun_ip:"10.66.0.1",tun_peer_ip:"10.66.0.2"});
+  openEditCard();
+}
+async function saveInstance(){
+  const name=document.getElementById("f_name").value.trim();
+  if(!name){ toast(t("need_name"),"err"); return; }
+  const config=collectForm();
+  try{ await api("POST","/api/instances",{name,config}); toast(t("saved"),"ok");
+    document.getElementById("editCard").classList.add("hidden"); loadInstances(); }
+  catch(e){ toast(esc(e.message),"err"); }
+}
+
+// ───────────────────────── instance pickers (iptest/logs) ─────────────────────────
+async function loadInstancePickers(){
+  try{
+    const d=await api("GET","/api/instances");
+    const list=d.instances||[];
+    ["t_inst","l_inst"].forEach(id=>{
+      const sel=document.getElementById(id); if(!sel) return;
+      const cur=sel.value;
+      sel.innerHTML=list.map(i=>`<option value="${esc(i.name)}">${esc(i.name)} (${esc(i.role)})</option>`).join("");
+      if(cur) sel.value=cur;
+    });
+  }catch(e){}
+}
+
+// ───────────────────────── IP tester ─────────────────────────
+let TEST_POLL=null;
+function latClass(ms){ return ms<80?"lat-good":ms<200?"lat-mid":"lat-bad"; }
+async function runTest(){
+  const instance=document.getElementById("t_inst").value;
+  if(!instance){ toast(t("pick_instance"),"err"); return; }
+  const ips=document.getElementById("t_ips").value;
+  if(!ips.trim()){ toast(t("need_ips"),"err"); return; }
+  const timeout_ms=parseInt(document.getElementById("t_timeout").value||"1500",10);
+  const probes=parseInt(document.getElementById("t_probes").value||"2",10);
+  const workers=parseInt(document.getElementById("t_workers").value||"64",10);
+  const btn=document.getElementById("runTest"); btn.disabled=true;
+  document.getElementById("testStatus").innerHTML=`<span class="spin"></span> ${t("running")}`;
+  try{
+    const r=await api("POST","/api/iptest",{instance,ips,timeout_ms,probes,workers});
+    pollTest(r.job_id);
+  }catch(e){ toast(esc(e.message),"err"); btn.disabled=false; document.getElementById("testStatus").textContent=""; }
+}
+function pollTest(id){
+  clearInterval(TEST_POLL);
+  TEST_POLL=setInterval(async()=>{
+    try{
+      const s=await api("GET","/api/iptest/"+id);
+      if(s.state==="running"){
+        document.getElementById("testStatus").innerHTML=`<span class="spin"></span> ${t("running")} · ${s.elapsed_secs}s`;
+        return;
+      }
+      clearInterval(TEST_POLL);
+      document.getElementById("runTest").disabled=false;
+      if(s.state==="error"){ document.getElementById("testStatus").textContent=""; toast(esc(s.error||"error"),"err"); return; }
+      document.getElementById("testStatus").textContent=`${t("done")} · ${s.elapsed_secs}s`;
+      renderTestResults(s);
+    }catch(e){ clearInterval(TEST_POLL); document.getElementById("runTest").disabled=false; }
+  },1000);
+}
+function renderTestResults(s){
+  document.getElementById("testResultsCard").classList.remove("hidden");
+  document.getElementById("testSummary").textContent =
+    `· ${s.reachable}/${s.total} ${t("reachable")}`;
+  const host=document.getElementById("testResults");
+  const ok=(s.results||[]).filter(r=>r.latency_ms!==null && r.latency_ms!==undefined);
+  if(!ok.length){ host.innerHTML=`<div class="empty">${t("no_results")}</div>`; return; }
+  let rank=0;
+  const rows=ok.map(r=>{
+    rank++;
+    return `<tr><td class="ranknum">${rank}</td><td class="mono"><b>${esc(r.ip)}</b></td>
+      <td class="${latClass(r.latency_ms)}">${r.latency_ms} ms</td></tr>`;
+  }).join("");
+  host.innerHTML=`<table><thead><tr><th>${t("rank")}</th><th>IP</th><th>${t("latency")}</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ───────────────────────── logs ─────────────────────────
+let LOG_POLL=null;
+async function loadLogs(){
+  const name=document.getElementById("l_inst").value;
+  if(!name){ return; }
+  const lines=parseInt(document.getElementById("l_lines").value||"150",10);
+  try{
+    const d=await api("GET",`/api/instances/${encodeURIComponent(name)}/logs?lines=${lines}`);
+    const out=document.getElementById("logsOut"); out.textContent=d.logs||"(empty)"; out.scrollTop=out.scrollHeight;
+  }catch(e){ document.getElementById("logsOut").textContent=esc(e.message); }
+}
+function toggleAutoLogs(){
+  clearInterval(LOG_POLL);
+  if(document.getElementById("l_auto").checked){ LOG_POLL=setInterval(loadLogs,3000); loadLogs(); }
+}
+
+// ───────────────────────── util ─────────────────────────
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+// ───────────────────────── boot ─────────────────────────
+function wire(){
+  document.getElementById("loginBtn").onclick=doLogin;
+  document.getElementById("loginPw").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
+  document.getElementById("loginLang").onclick=toggleLang;
+  document.getElementById("loginTheme").onclick=toggleTheme;
+  document.getElementById("langBtn").onclick=toggleLang;
+  document.getElementById("themeBtn").onclick=toggleTheme;
+  document.getElementById("logoutBtn").onclick=doLogout;
+  document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>gotoTab(b.dataset.tab));
+  document.getElementById("newInstBtn").onclick=openNew;
+  document.getElementById("saveInst").onclick=saveInstance;
+  document.getElementById("cancelInst").onclick=()=>document.getElementById("editCard").classList.add("hidden");
+  document.getElementById("closeEdit").onclick=()=>document.getElementById("editCard").classList.add("hidden");
+  document.getElementById("runTest").onclick=runTest;
+  document.getElementById("loadLogs").onclick=loadLogs;
+  document.getElementById("l_auto").onchange=toggleAutoLogs;
+  META=true; // enable form rendering
+}
+async function boot(){
+  applyTheme(); wire(); applyLang();
+  try{
+    const s=await api("GET","/api/session");
+    if(s.authenticated){ showApp(); } else { showLogin(); }
+  }catch(e){ showLogin(); }
+}
+boot();
+</script>
+</body>
+</html>

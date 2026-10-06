@@ -205,6 +205,27 @@ impl TunnelManager {
         Ok((id, app_rx, net_tx))
     }
 
+    /// Retransmit the SYN for a still-handshaking client tunnel.
+    ///
+    /// No-op once the tunnel has left `SynSent` (e.g. already established or
+    /// closed). Lets the client survive a lost SYN/SYN-ACK on a lossy or
+    /// heavily filtered path instead of failing the whole handshake.
+    pub async fn retransmit_syn(&self, id: u32) -> Result<()> {
+        let syn = {
+            let Some(tunnel) = self.0.tunnels.get(&id).map(|t| t.clone()) else {
+                return Ok(());
+            };
+            let t = tunnel.lock().await;
+            if t.state != TunnelState::SynSent {
+                return Ok(());
+            }
+            // SYN consumed `send_next - 1` as its sequence number.
+            CandyPacket::new_syn(id, t.send_next.wrapping_sub(1))
+        };
+        log::debug!("tunnel {} retransmitting SYN", id);
+        self.tx_control(syn).await
+    }
+
     /// Accept an incoming SYN packet (server side) and create a tunnel.
     ///
     /// Returns the same triple as `open_tunnel`.

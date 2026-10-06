@@ -41,14 +41,15 @@
 2. [How It Works](#-how-it-works)
 3. [Quick Install](#-quick-install)
 4. [Manager Script](#-manager-script)
-5. [Manual Build](#-manual-build)
-6. [Quick Start (manual)](#-quick-start-manual)
-7. [Configuration Reference](#-configuration-reference)
-8. [Performance Tuning](#-performance-tuning)
-9. [Security & Encryption](#-security--encryption)
-10. [Operational Notes](#-operational-notes)
-11. [Donate](#-donate)
-12. [License](#-license)
+5. [Web Management Panel](#-web-management-panel)
+6. [Manual Build](#-manual-build)
+7. [Quick Start (manual)](#-quick-start-manual)
+8. [Configuration Reference](#-configuration-reference)
+9. [Performance Tuning](#-performance-tuning)
+10. [Security & Encryption](#-security--encryption)
+11. [Operational Notes](#-operational-notes)
+12. [Donate](#-donate)
+13. [License](#-license)
 
 ---
 
@@ -68,6 +69,7 @@
 | 🌐 **TUN + port forwarding** | Kernel-level IP tunnel with TCP/UDP port filters and iptables NAT |
 | 🔑 **HMAC-SHA256 auth** | Pre-shared key authentication — unknown peers silently dropped |
 | 🎨 **Beautiful logging** | Coloured, structured, aligned output with startup banner |
+| 🖥️ **Web management panel** | Embedded bilingual (فارسی/English) admin UI — manage instances, logs, and the IP tester from the browser |
 
 ---
 
@@ -206,6 +208,78 @@ sudo bash candy-manager.sh follow <name>    # Live log tail (Ctrl-C to exit)
 
 ---
 
+## 🖥️ Web Management Panel
+
+CandyTunnel ships an **embedded** web panel — a single self-contained HTTP server
+built into the binary (no external web framework, no Node, no extra services).
+It serves a **bilingual (فارسی / English), RTL-aware** admin UI with a dark/light
+theme for managing everything from the browser:
+
+- 📊 **Dashboard** — host CPU/RAM/uptime/load and a live overview of every instance
+- 🚇 **Instances** — create, edit (every config option), start/stop/restart,
+  enable/disable on boot, and delete — writes the same `/etc/candytunnel/*.toml`
+  files and `candytunnel@<name>.service` units as the manager script
+- 🎯 **IP Tester** — launch a spoofed-IP latency sweep and view **ranked**,
+  fastest-first results right in the browser
+- 📜 **Logs** — live `journalctl` tail per instance
+
+### Setup
+
+The easiest path is the manager script:
+
+```bash
+sudo bash candy-manager.sh panel        # writes panel config, sets password, starts service
+```
+
+Or manually with the unified binary:
+
+```bash
+# 1. Set the login password (stored only as a salted SHA-256 hash)
+sudo candy-tunnel panel --config /etc/candytunnel/panel.toml --set-password
+
+# 2. Run it (foreground, or via the candytunnel-panel.service unit)
+sudo candy-tunnel panel --config /etc/candytunnel/panel.toml
+```
+
+Then open **`http://127.0.0.1:8088`**.
+
+### Panel commands (manager script)
+
+```bash
+sudo bash candy-manager.sh panel          # first-time setup (config + password + service)
+sudo bash candy-manager.sh panel-passwd   # change the login password
+sudo bash candy-manager.sh panel-start    # start the panel service
+sudo bash candy-manager.sh panel-stop     # stop the panel service
+sudo bash candy-manager.sh panel-restart  # restart
+sudo bash candy-manager.sh panel-logs 100 # last 100 panel log lines
+```
+
+### Security
+
+> ⚠️ The panel runs as **root** (it drives `systemctl` and raw-socket IP tests).
+> Treat access to it as full control of the host.
+
+- Binds **`127.0.0.1` by default** — reach it over SSH:
+  `ssh -L 8088:127.0.0.1:8088 user@server`, then browse to `localhost:8088`.
+  A non-loopback bind is allowed but logged as a warning — put it behind TLS/a firewall.
+- **Password login** required; sessions are 256-bit opaque tokens in an
+  `HttpOnly; SameSite=Strict` cookie. The password is stored only as a salted
+  SHA-256 hash.
+- Mutating requests require an `X-CandyTunnel` header (set by the UI) which,
+  with `SameSite=Strict`, defeats CSRF. Login attempts are rate-limited per source IP.
+- Instance names are strictly validated and **no user input ever reaches a shell**
+  (commands run via `argv`, never `sh -c`).
+
+| Panel config key | Default | Description |
+|---|---|---|
+| `bind` | `127.0.0.1:8088` | Listen address `host:port` |
+| `session_ttl_secs` | `3600` | Session lifetime (sliding) |
+| `config_dir` | `/etc/candytunnel` | Where instance `*.toml` files live |
+| `bin_path` | `/opt/candytunnel/candy-tunnel` | Binary the panel drives |
+| `service_prefix` | `candytunnel` | systemd unit prefix (`<prefix>@<name>.service`) |
+
+---
+
 ## 🔧 Manual Build
 
 ### Prerequisites
@@ -271,9 +345,13 @@ Control verbosity with `--log-level` or the `log_level` config key:
 | `debug` | Detailed per-packet flow |
 | `trace` | Full wire-level dump (very verbose) |
 
-### Spoofed IP check mode
+### Spoofed IP check mode (IP tester)
 
-Measures latency for a list of candidate spoofed source IPs to find which ones survive your path.
+Measures latency for a list of candidate spoofed source IPs to find which ones
+survive your path. Each candidate is probed several times concurrently and the
+**fastest** reply is kept, so a single dropped packet no longer mislabels a good
+IP. Results are written **ranked fastest-first**, with a reachable/timeout
+summary — and the same sweep is available in the [web panel](#-web-management-panel).
 
 ```bash
 # Server — allow any source for the sweep:
@@ -281,13 +359,26 @@ sudo ./target/release/candy-tunnel --config config/server.toml --check-allow-any
 
 # Client — sweep the candidate list:
 sudo ./target/release/candy-tunnel --config config/client.toml \
-    --check --check-ips spoof_list.txt --check-out latency.txt
+    --check --check-ips spoof_list.txt --check-out latency.txt \
+    --check-probes 2 --check-timeout-ms 1500 --check-workers 64
 ```
 
-`latency.txt` output:
+| Flag | Default | Description |
+|---|---|---|
+| `--check-ips` | — | Candidate list file (one IPv4 per line; `#` comments and duplicates ignored) |
+| `--check-out` | `check_latency.txt` | Ranked output file |
+| `--check-probes` | `2` | SYN probes per IP (fastest reply wins) |
+| `--check-timeout-ms` | `1500` | Per-IP timeout |
+| `--check-workers` | `64` | Concurrent candidates |
+
+`latency.txt` output (ranked, fastest first; latency in ms):
 ```
-1.2.3.4   23ms
-5.6.7.8   timeout
+# CandyTunnel spoofed-IP check results (ranked fastest-first)
+# total=3 reachable=2 timeouts=1
+# columns: ip  latency_ms|timeout
+1.1.1.1         18
+8.8.4.4         23
+5.6.7.8         timeout
 ```
 
 ---
@@ -438,6 +529,8 @@ NIC speed tiers add extra tunnels: **+1** at 1 Gbps · **+2** at 2 Gbps · **+3*
 | **4 MB socket buffers** | `SO_SNDBUF`/`SO_RCVBUF` set to 4 MiB — absorbs 1 Gbps+ bursts |
 | **Atomic IP ID counter** | Replaces `rand::random()` per packet with a wrapping `AtomicU16` (~10× faster) |
 | **ChaCha20 stream cipher** | 3–8 GB/s vs ~700 MB/s for the previous SHA-256 CTR design |
+| **SYN handshake retransmission** | The client re-sends its SYN every 500 ms until the SYN-ACK arrives (≈15 s budget), so one dropped handshake packet on a lossy/filtered path no longer fails startup |
+| **Overhead-aware TUN MTU** | The effective TUN MTU is auto-clamped for the XOR nonce, DPI padding, and mux/encapsulation headers so a full-size packet rides in a single un-fragmented wire frame |
 | **DF bit cleared** | Avoids silent black-holes when path MTU < configured MTU |
 | **Raised QUIC windows** | 128 MB connection / 16 MB stream — prevents flow-control throttling on fast links |
 | **Raised default capacities** | `channel_capacity` 8192, `io_channel_capacity` 16384 (was 4096 each) |

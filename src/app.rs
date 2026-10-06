@@ -320,9 +320,9 @@ pub async fn run_server(cfg: Arc<Config>, allow_any: bool) -> Result<()> {
 
     let manager = TunnelManager::new(packet_sender, cfg.clone());
 
-    let tun_mtu = if cfg.tun_mtu == 0 { cfg.mtu } else { cfg.tun_mtu.min(cfg.mtu) };
-    if cfg.tun_mtu > cfg.mtu {
-        log::warn!("tun_mtu {} > mtu {} - clamping", cfg.tun_mtu, cfg.mtu);
+    let (tun_mtu, mtu_note) = cfg.effective_tun_mtu();
+    if let Some(note) = mtu_note {
+        log::warn!("{}", note);
     }
 
     let tun = Arc::new(TunDevice::create(
@@ -409,13 +409,9 @@ async fn run_tun_client(cfg: Arc<Config>, manager: TunnelManager) -> Result<()> 
         bail!("channel_capacity must be > 0");
     }
 
-    let tun_mtu = if cfg.tun_mtu == 0 {
-        cfg.mtu
-    } else {
-        cfg.tun_mtu.min(cfg.mtu)
-    };
-    if cfg.tun_mtu > cfg.mtu {
-        log::warn!("tun_mtu {} > mtu {} - clamping", cfg.tun_mtu, cfg.mtu);
+    let (tun_mtu, mtu_note) = cfg.effective_tun_mtu();
+    if let Some(note) = mtu_note {
+        log::warn!("{}", note);
     }
 
     let tun = Arc::new(TunDevice::create(
@@ -438,7 +434,18 @@ async fn run_tun_client(cfg: Arc<Config>, manager: TunnelManager) -> Result<()> 
 
     for _ in 0..cfg.tunnel_count {
         let (tid, app_rx, net_tx) = manager.open_tunnel().await?;
-        if !manager.wait_established(tid, Duration::from_secs(15)).await {
+        // Retransmit the SYN periodically until the SYN-ACK arrives, so a
+        // single dropped handshake packet on a lossy/filtered path does not
+        // fail startup. ~15s total budget in 500ms slices.
+        let mut established = false;
+        for _ in 0..30 {
+            if manager.wait_established(tid, Duration::from_millis(500)).await {
+                established = true;
+                break;
+            }
+            let _ = manager.retransmit_syn(tid).await;
+        }
+        if !established {
             bail!("tunnel {} handshake timed out", tid);
         }
         pool.add_tunnel(tid, net_tx).await;

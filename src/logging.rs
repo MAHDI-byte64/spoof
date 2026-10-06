@@ -6,7 +6,7 @@
 //! - The same startup banner and auto-tune summary helpers as before
 //!
 //! Output format (terminal):
-//! ```
+//! ```text
 //! 14:23:01 [INFO ] [app] CandyTunnel client starting …
 //! ```
 //! Level colours (simplelog built-in):

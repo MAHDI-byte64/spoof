@@ -394,12 +394,20 @@ impl Config {
     pub fn from_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("Cannot read config '{}': {}", path, e))?;
-        let raw: ConfigFile = toml::from_str(&content)
-            .map_err(|e| anyhow::anyhow!("Invalid config '{}': {}", path, e))?;
+        Self::from_toml_str(&content)
+            .map_err(|e| anyhow::anyhow!("Invalid config '{}': {}", path, e))
+    }
+
+    /// Parse a configuration from a TOML string and run cross-field validation.
+    ///
+    /// Used both by [`from_file`] and by the web panel to validate an edited
+    /// configuration before it is written to disk.
+    pub fn from_toml_str(content: &str) -> anyhow::Result<Self> {
+        let raw: ConfigFile = toml::from_str(content)?;
 
         let fallback_protocol = raw.protocol.unwrap_or_else(default_tunnel_protocol);
 
-        Ok(Self {
+        let cfg = Self {
             role: raw.role,
             real_ip: raw.real_ip,
             peer_real_ip: raw.peer_real_ip,
@@ -458,7 +466,43 @@ impl Config {
             ttl_jitter:         raw.ttl_jitter,
             fake_tls_header:    raw.fake_tls_header,
             random_dscp:        raw.random_dscp,
-        })
+        };
+
+        cfg.validate()?;
+        Ok(cfg)
+    }
+
+    /// Cross-field sanity checks shared by file loading and panel editing.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        use anyhow::bail;
+
+        let up_quic = self.uplink_protocol == TunnelProtocol::Quic;
+        let down_quic = self.downlink_protocol == TunnelProtocol::Quic;
+        if up_quic != down_quic {
+            bail!("quic requires both uplink_protocol and downlink_protocol = quic");
+        }
+        if (up_quic || down_quic) && self.shuffle_data_port {
+            bail!("shuffle_data_port is not supported with quic transport");
+        }
+        if self.tun_ip == self.tun_peer_ip {
+            bail!("tun_ip and tun_peer_ip must be different");
+        }
+        if self.mtu < 576 {
+            bail!("mtu must be >= 576");
+        }
+        if self.shuffle_data_port && self.shuffle_port_min > self.shuffle_port_max {
+            bail!("shuffle_port_min must be <= shuffle_port_max");
+        }
+        if self.enable_fec && self.fec_group_size < 2 {
+            bail!("fec_group_size must be >= 2 when enable_fec is set");
+        }
+        if self.tunnel_count == 0 {
+            bail!("tunnel_count must be > 0");
+        }
+        if self.channel_capacity == 0 {
+            bail!("channel_capacity must be > 0");
+        }
+        Ok(())
     }
 
     /// Build a deterministic pool of data ports for shuffle mode.
@@ -560,13 +604,87 @@ impl Config {
     }
 
     pub fn mux_fec_config(&self) -> MuxFecConfig {
+        // Cap the on-wire mux-frame size so that, after the XOR nonce and any
+        // DPI padding are appended, the resulting L4 payload still fits inside
+        // the configured `mtu` budget. Without this reservation a full mux
+        // frame + 12-byte nonce + up to 255 padding bytes could overflow the
+        // path MTU and get IP-fragmented, which hurts both throughput and
+        // stealth (fragmented spoofed packets are easy to fingerprint/drop).
+        let budget = self.mtu.max(256).saturating_sub(self.frame_overhead());
+        let cap = self.multiplex_max_payload.min(budget).max(64);
         MuxFecConfig {
             enable_multiplex: self.enable_multiplex,
             multiplex_flush_ms: self.multiplex_flush_ms,
-            multiplex_max_payload: self.multiplex_max_payload.min(self.mtu.max(256)),
+            multiplex_max_payload: cap,
             enable_fec: self.enable_fec,
             fec_group_size: self.fec_group_size,
         }
+    }
+
+    /// Per-frame wire overhead added *after* the CandyPacket/mux framing:
+    /// the XOR nonce (when encryption is on) and the DPI padding trailer
+    /// (when padding is on). Used to keep frames within the MTU budget.
+    pub fn frame_overhead(&self) -> usize {
+        let mut o = 0usize;
+        if self.enable_xor {
+            o += crate::xor::XOR_NONCE_LEN;
+        }
+        if self.packet_padding {
+            // random bytes (<= packet_padding_max) + 1-byte length marker
+            o += self.packet_padding_max as usize + 1;
+        }
+        o
+    }
+
+    /// Total per-packet overhead between a TUN IP packet and the wire L4
+    /// payload: CandyPacket header + optional mux header + frame overhead.
+    /// Used to clamp the effective TUN MTU so a single TUN packet always fits
+    /// in one wire frame without IP fragmentation.
+    pub fn wire_overhead(&self) -> usize {
+        // CandyPacket fixed header.
+        let mut o = crate::packet::HEADER_SIZE;
+        // Mux header (magic+ver+flags+group_id+group_size+index) + count byte
+        // + per-packet length prefix, only when multiplexing is active for a
+        // mux-capable transport.
+        let mux_capable = matches!(
+            self.uplink_protocol,
+            TunnelProtocol::Udp
+                | TunnelProtocol::Icmp
+                | TunnelProtocol::Proto58
+                | TunnelProtocol::Ipip
+                | TunnelProtocol::Gre
+        );
+        if self.enable_multiplex && mux_capable {
+            o += 9 /* mux header */ + 1 /* count */ + 2 /* length prefix */;
+        }
+        o += self.frame_overhead();
+        o
+    }
+
+    /// The largest TUN MTU that still lets a full-size TUN packet travel in a
+    /// single un-fragmented wire frame within the `mtu` budget. Callers clamp
+    /// the user-requested `tun_mtu` to this value.
+    pub fn max_safe_tun_mtu(&self) -> usize {
+        self.mtu.saturating_sub(self.wire_overhead()).max(576)
+    }
+
+    /// Final TUN interface MTU: the user's `tun_mtu` (or `mtu` when unset),
+    /// clamped both to `mtu` and to [`max_safe_tun_mtu`]. Returns the value
+    /// plus an optional human-readable note when clamping occurred, so the
+    /// caller can log it once.
+    pub fn effective_tun_mtu(&self) -> (usize, Option<String>) {
+        let requested = if self.tun_mtu == 0 { self.mtu } else { self.tun_mtu };
+        let safe = self.max_safe_tun_mtu();
+        let clamped = requested.min(self.mtu).min(safe);
+        let note = if clamped < requested {
+            Some(format!(
+                "tun_mtu {} clamped to {} (mtu {} minus {}-byte wire overhead) to avoid IP fragmentation",
+                requested, clamped, self.mtu, self.wire_overhead()
+            ))
+        } else {
+            None
+        };
+        (clamped, note)
     }
 
     pub fn pick_icmp_id(&self) -> u16 {
@@ -643,4 +761,68 @@ fn collect_ports_from_proc(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MINIMAL: &str = r#"
+        real_ip = "10.0.0.1"
+        peer_real_ip = "10.0.0.2"
+        spoofed_ip = "8.8.4.4"
+        peer_spoofed_ip = "1.2.3.4"
+        data_port = 51820
+        icmp_id = 1
+        pre_shared_key = "k"
+        interface = "eth0"
+        tun_ip = "10.66.0.1"
+        tun_peer_ip = "10.66.0.2"
+    "#;
+
+    #[test]
+    fn minimal_config_loads() {
+        let cfg = Config::from_toml_str(MINIMAL).unwrap();
+        assert_eq!(cfg.data_port, 51820);
+        // No xor/padding → no frame overhead.
+        assert_eq!(cfg.frame_overhead(), 0);
+    }
+
+    #[test]
+    fn frame_overhead_accounts_for_xor_and_padding() {
+        let toml = format!("{}\nenable_xor = true\npacket_padding = true\npacket_padding_max = 64\n", MINIMAL);
+        let cfg = Config::from_toml_str(&toml).unwrap();
+        // 12-byte nonce + (64 pad + 1 length marker).
+        assert_eq!(cfg.frame_overhead(), crate::xor::XOR_NONCE_LEN + 65);
+    }
+
+    #[test]
+    fn tun_mtu_is_clamped_for_overhead() {
+        let toml = format!("{}\nenable_xor = true\npacket_padding = true\npacket_padding_max = 64\n", MINIMAL);
+        let cfg = Config::from_toml_str(&toml).unwrap();
+        let (mtu, note) = cfg.effective_tun_mtu();
+        assert!(mtu <= cfg.max_safe_tun_mtu());
+        assert!(mtu < cfg.mtu, "clamped mtu {} should be below mtu {}", mtu, cfg.mtu);
+        assert!(note.is_some(), "clamping should be reported");
+    }
+
+    #[test]
+    fn mux_cap_stays_within_mtu_budget() {
+        let toml = format!("{}\nenable_xor = true\npacket_padding = true\npacket_padding_max = 200\n", MINIMAL);
+        let cfg = Config::from_toml_str(&toml).unwrap();
+        let mux = cfg.mux_fec_config();
+        assert!(mux.multiplex_max_payload + cfg.frame_overhead() <= cfg.mtu.max(256));
+    }
+
+    #[test]
+    fn quic_one_sided_is_rejected() {
+        let toml = format!("{}\nuplink_protocol = \"quic\"\ndownlink_protocol = \"udp\"\n", MINIMAL);
+        assert!(Config::from_toml_str(&toml).is_err());
+    }
+
+    #[test]
+    fn same_tun_ips_rejected() {
+        let toml = MINIMAL.replace("10.66.0.2", "10.66.0.1");
+        assert!(Config::from_toml_str(&toml).is_err());
+    }
 }
