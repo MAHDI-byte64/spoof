@@ -103,8 +103,9 @@ impl Tunnel {
 /// The addressing information needed to build spoofed outgoing packets.
 #[derive(Debug, Clone)]
 pub struct PeerAddr {
-    /// Source IP we spoof on outgoing packets.
-    pub local_spoof: Ipv4Addr,
+    /// Source IPs we spoof on outgoing packets (one per packet, round-robin
+    /// when rotation is on).
+    pub local_spoof: crate::config::SpoofPool,
     /// Destination IP of the peer (their real address).
     pub peer_real:   Ipv4Addr,
     /// UDP destination port for the data channel.
@@ -510,7 +511,7 @@ impl TunnelManager {
                 let enc = pkt.encode();
                 let out = match self.0.cfg.uplink_protocol {
                     TunnelProtocol::Udp => OutPacket::Udp {
-                        src_ip:   addr.local_spoof,
+                        src_ip:   addr.local_spoof.next(),
                         dst_ip:   addr.peer_real,
                         src_port: addr.pick_data_port(),
                         dst_port: addr.pick_data_port(),
@@ -527,7 +528,7 @@ impl TunnelManager {
                             None => (pkt.seq & 0xffff) as u16,
                         };
                         OutPacket::Icmp {
-                            src_ip:  addr.local_spoof,
+                            src_ip:  addr.local_spoof.next(),
                             dst_ip:  addr.peer_real,
                             id:      addr.pick_icmp_id(),
                             seq,
@@ -536,21 +537,21 @@ impl TunnelManager {
                     }
                     TunnelProtocol::Proto58 => {
                         OutPacket::Proto58 {
-                            src_ip:  addr.local_spoof,
+                            src_ip:  addr.local_spoof.next(),
                             dst_ip:  addr.peer_real,
                             payload: enc,
                         }
                     }
                     TunnelProtocol::Ipip => {
                         OutPacket::Ipip {
-                            src_ip:  addr.local_spoof,
+                            src_ip:  addr.local_spoof.next(),
                             dst_ip:  addr.peer_real,
                             payload: enc,
                         }
                     }
                     TunnelProtocol::Gre => {
                         OutPacket::Gre {
-                            src_ip:  addr.local_spoof,
+                            src_ip:  addr.local_spoof.next(),
                             dst_ip:  addr.peer_real,
                             payload: enc,
                         }
@@ -569,7 +570,7 @@ impl TunnelManager {
                             None => (pkt.seq, 0),
                         };
                         OutPacket::Tcp {
-                            src_ip:   addr.local_spoof,
+                            src_ip:   addr.local_spoof.next(),
                             dst_ip:   addr.peer_real,
                             src_port: addr.pick_data_port(),
                             dst_port: addr.pick_data_port(),

@@ -8,6 +8,7 @@
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub mod config;
+pub mod iplist;
 pub mod packet;
 pub mod raw_socket;
 pub mod xor;

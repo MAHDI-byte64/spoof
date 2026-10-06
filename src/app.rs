@@ -140,7 +140,7 @@ pub async fn run_client(cfg: Arc<Config>) -> Result<()> {
 
     let mut allowed = cfg.allowed_peers.clone();
     allowed.push(cfg.peer_real_ip);
-    allowed.push(cfg.peer_spoofed_ip);
+    allowed.extend(cfg.peer_spoofed_ips());
     log::debug!("client allowed_peers count={}", allowed.len());
 
     let (packet_sender, mut receiver) = if use_quic {
@@ -160,7 +160,7 @@ pub async fn run_client(cfg: Arc<Config>) -> Result<()> {
             cfg.effective_recv_batch(),
         )?;
         let peer_addr = PeerAddr {
-            local_spoof: cfg.pick_spoofed_ip(),
+            local_spoof: cfg.spoof_pool(),
             peer_real:   cfg.peer_real_ip,
             data_port:   cfg.data_port,
             data_ports:  data_ports.clone(),
@@ -285,7 +285,7 @@ pub async fn run_server(cfg: Arc<Config>, allow_any: bool) -> Result<()> {
     let mut allowed = if allow_any { Vec::new() } else { cfg.allowed_peers.clone() };
     if !allow_any {
         allowed.push(cfg.peer_real_ip);
-        allowed.push(cfg.peer_spoofed_ip);
+        allowed.extend(cfg.peer_spoofed_ips());
     }
     log::debug!("server allowed_peers count={}", allowed.len());
 
@@ -306,7 +306,7 @@ pub async fn run_server(cfg: Arc<Config>, allow_any: bool) -> Result<()> {
             cfg.effective_recv_batch(),
         )?;
         let peer_addr = PeerAddr {
-            local_spoof: cfg.pick_spoofed_ip(),
+            local_spoof: cfg.spoof_pool(),
             peer_real:   cfg.peer_real_ip,
             data_port:   cfg.data_port,
             data_ports:  data_ports.clone(),
