@@ -140,7 +140,7 @@ fn main() -> Result<()> {
         };
 
         if p.set_password {
-            return set_password(&panel_config);
+            return set_password(&panel_config, p.password.as_deref());
         }
 
         init_logging(args.log_level.as_deref().unwrap_or("info"));

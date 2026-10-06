@@ -296,7 +296,7 @@ impl Tester {
                 pace(started, sent + errors, cfg.rate_pps);
             }
             done_ips += 1;
-            if done_ips % 64 == 0 || done_ips == total {
+            if done_ips.is_multiple_of(64) || done_ips == total {
                 let mut sh = self.shared.lock().unwrap();
                 sh.state.packets = sent;
                 sh.state.progress = ((done_ips * 100) / total).min(100) as u8;
@@ -391,7 +391,7 @@ fn build_probe(cfg: &TesterConfig, src: Ipv4Addr, dst: Ipv4Addr, i: u32) -> Vec<
             cfg.port,
             rand::random(),
             0,
-            pnet_packet::tcp::TcpFlags::SYN as u8,
+            pnet_packet::tcp::TcpFlags::SYN,
             &[],
         ),
         Probe::Udp => build_udp_packet(src, dst, sport, cfg.port, MARKER),

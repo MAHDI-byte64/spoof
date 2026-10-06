@@ -102,16 +102,23 @@ struct PanelState {
 
 // ── Entry points ─────────────────────────────────────────────────────────────
 
-/// Interactively set the panel password and persist its salted hash into the
-/// panel config file, then return. Used by `candy-tunnel panel --set-password`.
-pub fn set_password(config_path: &str) -> Result<()> {
-    let pw1 = rpassword::prompt_password("New panel password: ")?;
+/// Set the panel password and persist its salted hash into the panel config
+/// file. With `provided` the password is taken as given (for the one-line
+/// installer); otherwise it is prompted for twice. Used by
+/// `candy-tunnel panel --set-password [--password <pw>]`.
+pub fn set_password(config_path: &str, provided: Option<&str>) -> Result<()> {
+    let pw1 = match provided {
+        Some(p) => p.to_string(),
+        None => rpassword::prompt_password("New panel password: ")?,
+    };
     if pw1.len() < 6 {
         bail!("password must be at least 6 characters");
     }
-    let pw2 = rpassword::prompt_password("Confirm panel password: ")?;
-    if pw1 != pw2 {
-        bail!("passwords do not match");
+    if provided.is_none() {
+        let pw2 = rpassword::prompt_password("Confirm panel password: ")?;
+        if pw1 != pw2 {
+            bail!("passwords do not match");
+        }
     }
 
     let salt = auth::random_salt();
