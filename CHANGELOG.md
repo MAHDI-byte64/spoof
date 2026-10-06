@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v4.3.0
 
 ### Added
 - **Per-packet spoofed-IP rotation** (`spoof_rotation`, on by default): each
