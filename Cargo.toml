@@ -1,6 +1,6 @@
 [package]
 name = "CandyTunnel"
-version = "4.1.0"
+version = "4.2.0"
 edition = "2021"
 authors = ["AmiRCandy"]
 description = "Bidirectional IP spoofing tunnel for heavily censored networks"
