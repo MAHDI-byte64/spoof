@@ -127,7 +127,28 @@
 
 ## 🚀 Quick Install
 
-The fastest way to get started is the **Manager Script**. It downloads the latest pre-built binary from GitHub Releases and walks you through every config option interactively.
+### One line — install the web panel
+
+The easiest path. Installs the latest binary, starts the **web management panel**
+as a systemd service, sets a password and prints the URL. You then create and
+manage tunnels from the panel (bilingual Persian/English, dark theme):
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/MAHDI-byte64/spoof/main/scripts/install.sh)
+```
+
+Run it on **both** servers. On the server side, create a tunnel, open its
+**Connection code**, and paste that code into the client's panel — every shared
+setting (keys, ports, protocols, spoofed-IP sets, TUN addresses) fills in
+automatically; only each side's real IP is left to confirm.
+
+Optional overrides: `PANEL_PORT`, `PANEL_BIND` (e.g. `127.0.0.1:8088` for
+loopback + SSH only), `PANEL_PASS`, `CT_VERSION`.
+
+### Guided CLI — the Manager Script
+
+Prefer the terminal? The **Manager Script** downloads the binary and walks you
+through every config option interactively.
 
 ```bash
 # Download the manager script

@@ -333,6 +333,7 @@ impl RawReceiver {
             dpi.packet_padding,
             recv_batch,
         );
+        let allowed = AllowList::new(allowed);
         let cap = capacity.max(1);
         let (tx, rx): (mpsc::Sender<InPacket>, mpsc::Receiver<InPacket>) = mpsc::bounded(cap);
 
@@ -443,6 +444,7 @@ impl RawUdpReceiver {
         let cap = capacity.max(1);
         let (tx, rx): (mpsc::Sender<UdpDatagram>, mpsc::Receiver<UdpDatagram>) = mpsc::bounded(cap);
         let udp_fd = create_raw_recv_socket(libc::IPPROTO_UDP as libc::c_int)?;
+        let allowed = AllowList::new(allowed);
         std::thread::Builder::new()
             .name("raw-recv-udp-raw".into())
             .spawn(move || {
@@ -485,7 +487,7 @@ fn set_sock_buf(fd: RawFd) {
     }
 }
 
-fn create_raw_send_socket() -> Result<RawFd> {
+pub(crate) fn create_raw_send_socket() -> Result<RawFd> {
     let fd = unsafe { libc::socket(libc::AF_INET, libc::SOCK_RAW, libc::IPPROTO_RAW) };
     if fd < 0 {
         return Err(std::io::Error::last_os_error())
@@ -506,7 +508,7 @@ fn create_raw_send_socket() -> Result<RawFd> {
     Ok(fd)
 }
 
-fn create_raw_recv_socket(proto: libc::c_int) -> Result<RawFd> {
+pub(crate) fn create_raw_recv_socket(proto: libc::c_int) -> Result<RawFd> {
     let fd = unsafe { libc::socket(libc::AF_INET, libc::SOCK_RAW, proto) };
     if fd < 0 {
         return Err(std::io::Error::last_os_error())
@@ -562,7 +564,7 @@ fn build_raw(out: OutPacket) -> (Vec<u8>, Ipv4Addr) {
     }
 }
 
-fn dst_sockaddr(dst: Ipv4Addr) -> libc::sockaddr_in {
+pub(crate) fn dst_sockaddr(dst: Ipv4Addr) -> libc::sockaddr_in {
     let mut addr: libc::sockaddr_in = unsafe { std::mem::zeroed() };
     addr.sin_family = libc::AF_INET as libc::sa_family_t;
     addr.sin_port = 0;
@@ -763,7 +765,7 @@ fn encrypt_out_packet(pkt: OutPacket, cipher: &XorCipher) -> OutPacket {
 
 /// Single-packet transmit with a prebuilt destination address (the batch
 /// fast-path for when only one packet is queued).
-fn raw_sendto_sa(fd: RawFd, data: &[u8], addr: &libc::sockaddr_in) -> Result<()> {
+pub(crate) fn raw_sendto_sa(fd: RawFd, data: &[u8], addr: &libc::sockaddr_in) -> Result<()> {
     loop {
         let n = unsafe {
             libc::sendto(
@@ -791,7 +793,7 @@ fn raw_sendto_sa(fd: RawFd, data: &[u8], addr: &libc::sockaddr_in) -> Result<()>
 fn udp_recv_loop(
     fd:        RawFd,
     port_filter: PortFilter,
-    allowed:   &[Ipv4Addr],
+    allowed:   &AllowList,
     tx:        mpsc::Sender<InPacket>,
     mux_fec:   MuxFecConfig,
     xor:       Option<&XorCipher>,
@@ -862,7 +864,7 @@ fn udp_recv_loop(
 fn udp_payload_loop(
     fd:        RawFd,
     port_filter: PortFilter,
-    allowed:   &[Ipv4Addr],
+    allowed:   &AllowList,
     tx:        mpsc::Sender<UdpDatagram>,
 ) {
     let mut buf = vec![0u8; 65535];
@@ -908,7 +910,7 @@ fn icmp_recv_loop(
     fd:      RawFd,
     icmp_id: u16,
     allow_any_icmp_id: bool,
-    allowed: &[Ipv4Addr],
+    allowed: &AllowList,
     tx:      mpsc::Sender<InPacket>,
     mux_fec: MuxFecConfig,
     xor:     Option<&XorCipher>,
@@ -977,7 +979,7 @@ fn icmp_recv_loop(
 
 fn proto58_recv_loop(
     fd:      RawFd,
-    allowed: &[Ipv4Addr],
+    allowed: &AllowList,
     tx:      mpsc::Sender<InPacket>,
     mux_fec: MuxFecConfig,
     xor:     Option<&XorCipher>,
@@ -1035,7 +1037,7 @@ fn proto58_recv_loop(
 /// payload (possibly XOR-encrypted, possibly a mux frame).
 fn ipip_recv_loop(
     fd:      RawFd,
-    allowed: &[Ipv4Addr],
+    allowed: &AllowList,
     tx:      mpsc::Sender<InPacket>,
     mux_fec: MuxFecConfig,
     xor:     Option<&XorCipher>,
@@ -1093,7 +1095,7 @@ fn ipip_recv_loop(
 /// treats the remaining bytes as the CandyTunnel payload.
 fn gre_recv_loop(
     fd:      RawFd,
-    allowed: &[Ipv4Addr],
+    allowed: &AllowList,
     tx:      mpsc::Sender<InPacket>,
     mux_fec: MuxFecConfig,
     xor:     Option<&XorCipher>,
@@ -1155,7 +1157,7 @@ fn gre_recv_loop(
 fn tcp_recv_loop(
     fd:        RawFd,
     port_filter: PortFilter,
-    allowed:   &[Ipv4Addr],
+    allowed:   &AllowList,
     tx:        mpsc::Sender<InPacket>,
     xor:       Option<&XorCipher>,
     padding:   bool,
@@ -1234,12 +1236,31 @@ fn raw_recvfrom(fd: RawFd, buf: &mut [u8]) -> Result<(usize, Ipv4Addr)> {
     Ok((n as usize, ip))
 }
 
-fn is_allowed(ip: Ipv4Addr, allowed: &[Ipv4Addr]) -> bool {
-    // If caller provided an empty allow-list, treat that as "allow all".
-    if allowed.is_empty() {
-        true
-    } else {
-        allowed.contains(&ip)
+fn is_allowed(ip: Ipv4Addr, allowed: &AllowList) -> bool {
+    allowed.allows(ip)
+}
+
+/// Source addresses a receiver accepts packets from.  An empty list accepts
+/// everything.  A hash set, because with a rotating peer the list can hold
+/// thousands of addresses and it is consulted on every packet.
+pub struct AllowList(std::collections::HashSet<Ipv4Addr>);
+
+impl AllowList {
+    pub fn new(ips: Vec<Ipv4Addr>) -> Self {
+        Self(ips.into_iter().collect())
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[inline]
+    pub fn allows(&self, ip: Ipv4Addr) -> bool {
+        self.0.is_empty() || self.0.contains(&ip)
     }
 }
 

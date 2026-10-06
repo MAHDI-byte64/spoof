@@ -1,772 +1,789 @@
 <!doctype html>
-<html lang="en" dir="ltr">
+<html lang="fa" dir="rtl" data-t="dark" data-accent="azure" data-lang="fa">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CandyTunnel Panel</title>
+<title>CandyTunnel</title>
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#070707">
 <style>
-  :root{
-    --bg:#0b0d12; --bg2:#11141b; --card:#161a23; --card2:#1c212c;
-    --line:#262c39; --txt:#e7ecf3; --dim:#97a1b2; --muted:#6b7483;
-    --pink:#ff5fa2; --pink2:#ff85ba; --cyan:#43d6c7; --amber:#ffc24b;
-    --green:#3ddc84; --red:#ff5d6c; --accent:var(--pink);
-    --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35);
-    --font:"Segoe UI",Roboto,system-ui,"Vazirmatn","Noto Sans Arabic",sans-serif;
-  }
-  :root[data-theme="light"]{
-    --bg:#f4f6fb; --bg2:#eef1f8; --card:#ffffff; --card2:#f7f9fe;
-    --line:#e2e7f0; --txt:#131720; --dim:#5c6678; --muted:#8b94a6;
-    --shadow:0 10px 30px rgba(30,40,70,.10);
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
-  body{background:
-      radial-gradient(1200px 600px at 100% -10%, rgba(255,95,162,.12), transparent 60%),
-      radial-gradient(900px 500px at -10% 110%, rgba(67,214,199,.10), transparent 55%),
-      var(--bg);
-    color:var(--txt);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
-  a{color:var(--pink2);text-decoration:none}
-  .hidden{display:none !important}
+/* ── Design tokens ────────────────────────────────────────────────────────
+   Monochrome by default; colour means status (ok / warn / error). One accent,
+   spent only on the mark, the primary button, the active nav item and focus. */
+:root{
+  --radius:16px; --radius-lg:22px;
+  --ok:#22c55e; --wr:#f59e0b; --er:#ef4444;
+  --spring:cubic-bezier(.32,.72,0,1);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Vazirmatn,"Noto Sans Arabic",Inter,system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-t="dark"]{
+  --bg:#070707; --s1:#121214; --s2:#1a1a1d; --s3:#222227;
+  --ln:rgba(255,255,255,.08); --ln2:rgba(255,255,255,.15); --ln3:rgba(255,255,255,.3);
+  --tx:#fafafa; --tx2:#dcdcdc; --mu:#8e8e8e; --dim:#606060; --faint:#3d3d3d;
+  --sunk:rgba(255,255,255,.05); --field:#0c0c0e;
+  --glass:color-mix(in srgb,var(--s1) 82%,transparent);
+  --glass-solid:color-mix(in srgb,var(--s1) 94%,transparent);
+  --lift:0 2px 10px rgba(0,0,0,.4),0 18px 44px -20px rgba(0,0,0,.85);
+}
+:root[data-t="light"]{
+  --bg:#eef1f6; --s1:#ffffff; --s2:#f7f9fc; --s3:#eef1f6;
+  --ln:rgba(10,20,40,.09); --ln2:rgba(10,20,40,.17); --ln3:rgba(10,20,40,.34);
+  --tx:#0b0f17; --tx2:#2c313c; --mu:#6a7180; --dim:#99a0ad; --faint:#c7ccd6;
+  --sunk:rgba(10,20,40,.045); --field:#ffffff;
+  --glass:color-mix(in srgb,var(--s1) 86%,transparent);
+  --glass-solid:color-mix(in srgb,var(--s1) 96%,transparent);
+  --lift:0 2px 10px rgba(30,40,70,.06),0 18px 44px -22px rgba(30,40,70,.28);
+}
+:root[data-accent="azure"]{ --ac:#38bdf8; --ac-on:#04222e; }
+:root[data-accent="azure"][data-t="light"]{ --ac:#0e85b8; --ac-on:#fff; }
+:root[data-accent="violet"]{ --ac:#8b7cf6; --ac-on:#fff; }
+:root[data-accent="lime"]{ --ac:#8bd450; --ac-on:#0f1b06; }
+:root[data-accent="lime"][data-t="light"]{ --ac:#5f8a00; --ac-on:#fff; }
+:root[data-accent="ember"]{ --ac:#f6702d; --ac-on:#fff; }
+:root[data-accent]{ --ac-soft:color-mix(in srgb,var(--ac) 15%,transparent); }
 
-  /* ── Top bar ── */
-  header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
-    padding:12px 20px;background:rgba(11,13,18,.72);backdrop-filter:blur(12px);
-    border-bottom:1px solid var(--line)}
-  :root[data-theme="light"] header{background:rgba(255,255,255,.72)}
-  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:.2px}
-  .brand .logo{font-size:24px;filter:drop-shadow(0 2px 6px rgba(255,95,162,.5))}
-  .brand small{font-weight:600;color:var(--dim);font-size:12px;padding:2px 8px;border:1px solid var(--line);border-radius:20px}
-  .spacer{flex:1}
-  .iconbtn{cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--txt);
-    border-radius:10px;padding:7px 12px;font-size:13px;font-weight:600;transition:.15s;display:inline-flex;gap:6px;align-items:center}
-  .iconbtn:hover{border-color:var(--accent);color:var(--accent)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{min-height:100dvh;background:var(--bg);color:var(--tx);font-family:var(--font);
+  font-size:14.5px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  transition:background .35s ease,color .35s ease;overflow-x:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+svg{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+[hidden]{display:none!important}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+a{color:var(--ac);text-decoration:none}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px;border-radius:5px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
-  /* ── Layout ── */
-  .wrap{max-width:1120px;margin:0 auto;padding:22px 20px 60px}
-  nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
-  nav.tabs button{cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dim);
-    padding:9px 16px;border-radius:12px;font-weight:700;font-size:14px;transition:.15s;font-family:inherit}
-  nav.tabs button:hover{color:var(--txt);background:var(--card)}
-  nav.tabs button.active{color:#fff;background:linear-gradient(135deg,var(--pink),#d94f8f);box-shadow:0 6px 16px rgba(255,95,162,.3)}
-  :root[data-theme="light"] nav.tabs button.active{color:#fff}
+/* ── Horizon background ── */
+.bgbars{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;display:flex}
+.bgbars i{flex:1 0 0;height:100%;transform-origin:bottom;transform:scaleY(var(--s));
+  background:linear-gradient(to top,color-mix(in srgb,var(--ac) 20%,transparent),
+    color-mix(in srgb,var(--ac) 5%,transparent) 45%,transparent 78%);
+  animation:pulse 2.6s ease-in-out var(--d) infinite alternate}
+:root[data-t="light"] .bgbars i{background:linear-gradient(to top,
+  color-mix(in srgb,var(--ac) 13%,transparent),color-mix(in srgb,var(--ac) 3%,transparent) 45%,transparent 78%)}
+@keyframes pulse{to{transform:scaleY(calc(var(--s)*.72))}}
 
-  .card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
-    border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);margin-bottom:18px}
-  .card h2{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:8px}
-  .card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+/* ── Boot ── */
+#boot{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:16px;background:var(--bg);transition:opacity .5s ease,visibility .5s ease}
+#boot.gone{opacity:0;visibility:hidden;pointer-events:none}
+.boot-mark{width:60px;height:60px;position:relative;display:grid;place-items:center}
+.boot-mark .ring{position:absolute;inset:0;transform:rotate(-90deg)}
+.boot-mark .trk{stroke:var(--ln2);stroke-width:2;fill:none}
+.boot-mark .arc{stroke:var(--ac);stroke-width:2.4;stroke-linecap:round;fill:none;
+  stroke-dasharray:182;stroke-dashoffset:182;animation:fill 1.1s var(--spring) infinite}
+@keyframes fill{0%{stroke-dashoffset:182}60%,100%{stroke-dashoffset:20}}
+.boot-logo{width:42px;height:42px;border-radius:13px;background:var(--ac);color:var(--ac-on);display:grid;place-items:center}
+.boot-logo svg{width:22px;height:22px;stroke-width:2.2}
+.boot-title{font-size:19px;font-weight:680;letter-spacing:-.02em}
 
-  .grid{display:grid;gap:14px}
-  .grid.cols{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
-  .stat{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-  .stat .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-  .stat .v{font-size:22px;font-weight:800;margin-top:4px}
-  .stat .v small{font-size:13px;color:var(--dim);font-weight:600}
+/* ── App shell ── */
+#app{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 clamp(12px,3vw,24px) 60px}
+header.hd{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;padding:14px 2px 12px;
+  background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.hd .mk{width:36px;height:36px;border-radius:11px;background:var(--ac);color:var(--ac-on);display:grid;place-items:center;flex:none}
+.hd .mk svg{width:19px;height:19px;stroke-width:2.1}
+.hd .who{min-width:0}
+.hd .who b{display:block;font-size:16px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.hd .who small{display:block;font-size:11.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hd .sp{flex:1}
+.ic{width:36px;height:36px;border-radius:11px;border:1px solid var(--ln);background:var(--s1);color:var(--mu);
+  cursor:pointer;display:grid;place-items:center;flex:none;transition:.18s;font-size:12px;font-weight:700}
+.ic:hover{background:var(--sunk);color:var(--tx);border-color:var(--ln2)}
+.ic svg{width:17px;height:17px}
 
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  th,td{text-align:start;padding:11px 12px;border-bottom:1px solid var(--line)}
-  th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.4px;font-weight:700}
-  tbody tr:hover{background:var(--card2)}
-  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid var(--line)}
-  .pill .dot{width:8px;height:8px;border-radius:50%}
-  .pill.on{color:var(--green);border-color:rgba(61,220,132,.35)} .pill.on .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
-  .pill.off{color:var(--muted)} .pill.off .dot{background:var(--muted)}
-  .pill.bad{color:var(--red);border-color:rgba(255,93,108,.35)} .pill.bad .dot{background:var(--red)}
-  .pill.warn{color:var(--amber);border-color:rgba(255,194,75,.35)} .pill.warn .dot{background:var(--amber)}
+/* ── Dock ── */
+.dockZ{display:flex;justify-content:center;padding:14px 0 18px}
+.dock{display:inline-flex;gap:3px;padding:4px;border-radius:14px;border:1px solid var(--ln);background:var(--s2)}
+.dock button{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:-.01em;
+  padding:9px 15px;border-radius:11px;border:0;background:transparent;color:var(--mu);cursor:pointer;transition:.18s;white-space:nowrap}
+.dock button:hover{color:var(--tx2)}
+.dock button.on{background:var(--ac);color:var(--ac-on)}
+.dock button svg{width:16px;height:16px;flex:none}
+.dock .n{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:7px;background:var(--sunk);color:var(--mu)}
+.dock button.on .n{background:color-mix(in srgb,var(--ac-on) 20%,transparent);color:var(--ac-on)}
+.dock .n:empty{display:none}
+@media (max-width:640px){
+  .dock{display:flex;width:100%} .dock button{flex:1;justify-content:center;padding:9px 6px}
+  .dock button:not(.on) span:not(.n){display:none}
+}
 
-  .btn{cursor:pointer;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;
-    font-family:inherit;transition:.15s;color:#fff;background:linear-gradient(135deg,var(--pink),#d94f8f)}
-  .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
-  .btn:active{transform:none}
-  .btn.ghost{background:var(--card);color:var(--txt);border:1px solid var(--line)}
-  .btn.ghost:hover{border-color:var(--accent);color:var(--accent);filter:none}
-  .btn.sm{padding:6px 11px;font-size:12px}
-  .btn.danger{background:linear-gradient(135deg,#ff5d6c,#d6424f)}
-  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
-  .rowbtns{display:flex;gap:6px;flex-wrap:wrap}
+/* ── Cards ── */
+.card{background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(150%);backdrop-filter:blur(18px) saturate(150%);
+  border:1px solid var(--ln);border-top-color:color-mix(in srgb,var(--tx) 12%,transparent);
+  border-radius:var(--radius-lg);box-shadow:var(--lift);padding:18px 20px;margin-bottom:16px}
+.card h2{font-size:16px;font-weight:680;letter-spacing:-.02em;display:flex;align-items:center;gap:9px;margin-bottom:3px}
+.card h2 svg{width:17px;height:17px;color:var(--mu)}
+.card .sub{color:var(--mu);font-size:12.5px;margin-bottom:15px;line-height:1.5}
+.sectitle{display:flex;align-items:center;gap:10px;margin:4px 2px 12px}
+.sectitle h3{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.sectitle .ln{flex:1;height:1px;background:linear-gradient(90deg,var(--ac-soft),var(--ln) 40%)}
 
-  label.field{display:block;margin-bottom:2px}
-  .field .lab{display:block;font-size:12.5px;color:var(--dim);font-weight:600;margin-bottom:5px}
-  input,select,textarea{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--txt);
-    border-radius:10px;padding:9px 11px;font-size:14px;font-family:inherit;transition:.15s}
-  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,95,162,.15)}
-  textarea{resize:vertical;min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
-  .switch{display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 0}
-  .switch input{display:none}
-  .track{width:42px;height:24px;border-radius:20px;background:var(--line);position:relative;transition:.2s;flex:none}
-  .track::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
-  .switch input:checked + .track{background:linear-gradient(135deg,var(--pink),#d94f8f)}
-  .switch input:checked + .track::after{inset-inline-start:21px}
+/* ── Resource tiles ── */
+.res{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--ln);border:1px solid var(--ln);border-radius:var(--radius);overflow:hidden}
+.res .t{background:var(--glass-solid);padding:15px 16px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.res .t .k{font-size:11px;color:var(--dim);font-weight:560}
+.res .t .v{font-size:23px;font-weight:700;line-height:1}
+.res .t .v em{font-style:normal;font-size:12px;color:var(--mu);font-weight:560;margin-inline-start:3px}
+.res .t .bar{height:5px;border-radius:3px;background:var(--sunk);overflow:hidden}
+.res .t .bar i{display:block;height:100%;border-radius:3px;background:var(--ac);width:0;transition:width .7s var(--spring)}
+.res .t .s{font-size:11px;color:var(--dim)}
+@media (max-width:760px){.res{grid-template-columns:repeat(2,1fr)}}
 
-  .formgroup{border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
-  .formgroup > summary{cursor:pointer;padding:12px 16px;font-weight:700;background:var(--card2);list-style:none;display:flex;align-items:center;gap:8px}
-  .formgroup > summary::-webkit-details-marker{display:none}
-  .formgroup > summary .chev{margin-inline-start:auto;color:var(--muted);transition:.2s}
-  .formgroup[open] > summary .chev{transform:rotate(90deg)}
-  .formgroup .body{padding:16px;display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
-  .formgroup .body .full{grid-column:1/-1}
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ln);border-radius:11px;padding:9px 15px;
+  font-size:13px;font-weight:620;cursor:pointer;background:var(--s1);color:var(--tx);transition:.16s;white-space:nowrap}
+.btn:hover{background:var(--sunk);border-color:var(--ln2)}
+.btn.primary{background:var(--ac);color:var(--ac-on);border-color:transparent}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.sm{padding:6px 11px;font-size:12px;border-radius:9px}
+.btn.danger{color:var(--er);border-color:color-mix(in srgb,var(--er) 32%,transparent)}
+.btn.danger:hover{background:color-mix(in srgb,var(--er) 12%,transparent)}
+.btn svg{width:15px;height:15px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.block{width:100%;justify-content:center}
 
-  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-  pre.logs{background:#07090d;border:1px solid var(--line);border-radius:12px;padding:14px;max-height:460px;
-    overflow:auto;font-size:12.5px;line-height:1.55;color:#cdd6e4;white-space:pre-wrap;word-break:break-word}
-  :root[data-theme="light"] pre.logs{background:#0b0d12;color:#cdd6e4}
+/* ── Forms ── */
+.field{display:block;margin-bottom:13px}
+.field .lab{display:block;font-size:12px;color:var(--mu);font-weight:600;margin-bottom:6px}
+input,select,textarea{width:100%;background:var(--field);border:1px solid var(--ln);color:var(--tx);
+  border-radius:11px;padding:10px 12px;font-size:14px;transition:.16s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-soft)}
+textarea{resize:vertical;min-height:110px;font-family:var(--mono);font-size:12.5px;line-height:1.6}
+.row{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.hint{font-size:11.5px;color:var(--dim);margin-top:6px;line-height:1.5}
+.sw{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 0;font-size:13px}
+.sw input{display:none}
+.track{width:40px;height:23px;border-radius:14px;background:var(--ln2);position:relative;transition:.2s;flex:none}
+.track::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:17px;height:17px;border-radius:50%;background:#fff;transition:.2s}
+.sw input:checked + .track{background:var(--ac)}
+.sw input:checked + .track::after{inset-inline-start:20px}
 
-  /* ── Login ── */
-  .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  .login .box{width:100%;max-width:380px;text-align:center}
-  .login .logo{font-size:56px;filter:drop-shadow(0 6px 20px rgba(255,95,162,.5))}
-  .login h1{margin:10px 0 2px;font-size:26px}
-  .login p{color:var(--muted);margin:0 0 24px}
-  .login .card{text-align:start}
+/* ── Instance rows ── */
+.inst{display:flex;align-items:center;gap:13px;padding:14px 16px;border:1px solid var(--ln);border-radius:var(--radius);
+  background:var(--glass-solid);margin-bottom:10px;transition:.16s}
+.inst:hover{border-color:var(--ln2)}
+.inst .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--faint)}
+.inst .dot.on{background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 20%,transparent)}
+.inst .dot.bad{background:var(--er)}
+.inst .id{flex:1;min-width:0}
+.inst .id b{display:block;font-size:14.5px;font-weight:660;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inst .id .meta{display:flex;gap:7px;margin-top:3px;flex-wrap:wrap}
+.chip{font-size:10.5px;font-weight:680;letter-spacing:.03em;text-transform:uppercase;padding:2px 8px;border-radius:7px;background:var(--sunk);color:var(--mu)}
+.chip.role{background:var(--ac-soft);color:var(--ac)}
+.chip.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.chip.bad{color:var(--er);background:color-mix(in srgb,var(--er) 13%,transparent)}
+.inst .acts{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.iic{width:32px;height:32px;border-radius:9px;border:1px solid var(--ln);background:var(--s1);color:var(--mu);
+  cursor:pointer;display:grid;place-items:center;transition:.16s}
+.iic:hover{background:var(--sunk);color:var(--tx)}
+.iic.go:hover{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.iic.stop:hover{color:var(--er);border-color:color-mix(in srgb,var(--er) 35%,transparent)}
+.iic svg{width:15px;height:15px}
+.empty{text-align:center;color:var(--mu);padding:38px 16px;border:1px dashed var(--ln2);border-radius:var(--radius);font-size:13px}
+.empty b{display:block;color:var(--tx2);font-size:14.5px;margin-bottom:6px}
 
-  .toast{position:fixed;inset-block-end:22px;inset-inline-end:22px;z-index:50;display:flex;flex-direction:column;gap:10px}
-  .toast .t{background:var(--card);border:1px solid var(--line);border-inline-start:3px solid var(--accent);
-    border-radius:10px;padding:12px 16px;box-shadow:var(--shadow);min-width:240px;animation:slide .25s ease}
-  .toast .t.ok{border-inline-start-color:var(--green)} .toast .t.err{border-inline-start-color:var(--red)}
-  @keyframes slide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  .spin{display:inline-block;width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
-  @keyframes sp{to{transform:rotate(360deg)}}
-  .empty{text-align:center;color:var(--muted);padding:34px 10px}
-  .ranknum{color:var(--muted);font-variant-numeric:tabular-nums}
-  .lat-good{color:var(--green);font-weight:700}
-  .lat-mid{color:var(--amber);font-weight:700}
-  .lat-bad{color:var(--red);font-weight:700}
+/* ── Dialog ── */
+.scrim{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:18px}
+.scrim.on{display:flex}
+.scrim .veil{position:absolute;inset:0;background:color-mix(in srgb,var(--bg) 60%,transparent);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.dlg{position:relative;width:min(600px,100%);max-height:88vh;display:flex;flex-direction:column;
+  background:var(--s1);border:1px solid var(--ln2);border-radius:var(--radius-lg);box-shadow:var(--lift);overflow:hidden}
+.dlg .dh{display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid var(--ln)}
+.dlg .dh b{flex:1;font-size:16px;font-weight:680;letter-spacing:-.02em}
+.dlg .dh .x{width:32px;height:32px;border-radius:9px;border:1px solid var(--ln);background:transparent;color:var(--mu);cursor:pointer}
+.dlg .dh .x:hover{background:var(--sunk);color:var(--tx)}
+.dlg .db{padding:18px;overflow:auto}
+.dlg .df{display:flex;gap:9px;justify-content:flex-end;padding:14px 18px;border-top:1px solid var(--ln);flex-wrap:wrap}
+.tabs{display:flex;gap:4px;padding:4px;background:var(--sunk);border-radius:12px;margin-bottom:16px}
+.tabs button{flex:1;padding:9px;border:0;border-radius:9px;background:transparent;color:var(--mu);font-weight:620;font-size:13px;cursor:pointer;transition:.16s}
+.tabs button.on{background:var(--s1);color:var(--tx);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+details.grp{border:1px solid var(--ln);border-radius:12px;margin-bottom:11px;overflow:hidden}
+details.grp>summary{cursor:pointer;padding:12px 15px;font-weight:650;font-size:13px;background:var(--sunk);list-style:none;display:flex;align-items:center;gap:8px}
+details.grp>summary::-webkit-details-marker{display:none}
+details.grp>summary::after{content:"▾";margin-inline-start:auto;color:var(--mu);transition:.2s}
+details.grp[open]>summary::after{transform:rotate(180deg)}
+details.grp .gb{padding:15px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+details.grp .gb .full{grid-column:1/-1}
+
+/* ── Code box ── */
+.codebox{background:var(--field);border:1px solid var(--ln);border-radius:12px;padding:13px;font-family:var(--mono);
+  font-size:12px;word-break:break-all;line-height:1.6;color:var(--tx2);max-height:140px;overflow:auto;white-space:pre-wrap}
+
+/* ── Tables / results ── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:start;padding:9px 11px;border-bottom:1px solid var(--ln)}
+th{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+tbody tr:hover{background:var(--sunk)}
+.loss-ok{color:var(--ok);font-weight:680} .loss-mid{color:var(--wr);font-weight:680} .loss-bad{color:var(--er);font-weight:680}
+.progress{height:7px;border-radius:4px;background:var(--sunk);overflow:hidden;margin:4px 0 12px}
+.progress i{display:block;height:100%;background:var(--ac);width:0;transition:width .4s var(--spring)}
+pre.logs{background:#07080b;border:1px solid var(--ln);border-radius:12px;padding:14px;max-height:460px;overflow:auto;
+  font-family:var(--mono);font-size:12px;line-height:1.6;color:#cdd6e4;white-space:pre-wrap;word-break:break-word}
+.stat{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:6px}
+.stat .b{font-size:12px;color:var(--mu)} .stat .b b{display:block;font-size:20px;font-weight:720;color:var(--tx);margin-top:2px}
+
+/* ── Login ── */
+.login{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;z-index:1}
+.login .box{width:100%;max-width:370px;text-align:center}
+.login .mk{width:60px;height:60px;border-radius:18px;background:var(--ac);color:var(--ac-on);display:grid;place-items:center;margin:0 auto 16px}
+.login .mk svg{width:30px;height:30px;stroke-width:2.2}
+.login h1{font-size:25px;font-weight:720;letter-spacing:-.02em}
+.login p{color:var(--mu);margin:2px 0 22px;font-size:13px}
+.login .card{text-align:start}
+.login .foot{display:flex;justify-content:center;gap:10px;margin-top:16px}
+
+/* ── Toast / menus ── */
+.toast{position:fixed;inset-block-end:20px;inset-inline:0;z-index:120;display:flex;flex-direction:column;gap:9px;align-items:center;pointer-events:none}
+.toast .t{background:var(--s1);border:1px solid var(--ln2);border-inline-start:3px solid var(--ac);border-radius:11px;
+  padding:11px 16px;box-shadow:var(--lift);font-size:13px;font-weight:580;min-width:220px;animation:rise .25s ease}
+.toast .t.ok{border-inline-start-color:var(--ok)} .toast .t.err{border-inline-start-color:var(--er)}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.spin{width:15px;height:15px;border:2px solid var(--ln2);border-top-color:var(--ac);border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-3px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.menu{position:fixed;z-index:100;min-width:180px;padding:7px;background:var(--s1);border:1px solid var(--ln2);border-radius:14px;box-shadow:var(--lift)}
+.menu h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);padding:6px 9px 4px}
+.seg{display:flex;gap:4px;padding:0 5px 7px}
+.seg button{flex:1;padding:7px;border:1px solid var(--ln);border-radius:9px;background:var(--field);color:var(--mu);font-size:12px;font-weight:620;cursor:pointer}
+.seg button.on{background:var(--ac);color:var(--ac-on);border-color:transparent}
+.dots{display:flex;gap:7px;padding:2px 9px 8px}
+.dots button{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer;background:var(--c)}
+.dots button.on{border-color:var(--tx)}
 </style>
 </head>
 <body>
+<div class="bgbars" aria-hidden="true"></div>
 
-<!-- ───────────────────────── LOGIN ───────────────────────── -->
-<div id="login" class="login hidden">
+<div id="boot">
+  <div class="boot-mark">
+    <svg class="ring" viewBox="0 0 64 64"><circle class="trk" cx="32" cy="32" r="29"/><circle class="arc" cx="32" cy="32" r="29"/></svg>
+  </div>
+  <div class="boot-logo"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="18" cy="17" r="2.5"/></svg></div>
+  <div class="boot-title">CandyTunnel</div>
+</div>
+
+<div id="login" class="login" hidden>
   <div class="box">
-    <div class="logo">🍬</div>
+    <div class="mk"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="18" cy="17" r="2.5"/></svg></div>
     <h1>CandyTunnel</h1>
-    <p data-i18n="login_sub">Web Management Panel</p>
+    <p data-i="login_sub">پنل مدیریت تونل</p>
     <div class="card">
-      <label class="field">
-        <span class="lab" data-i18n="password">Password</span>
-        <input id="loginPw" type="password" autocomplete="current-password" autofocus>
-      </label>
-      <button class="btn" style="width:100%;margin-top:8px" id="loginBtn" data-i18n="sign_in">Sign in</button>
-      <div style="display:flex;justify-content:center;gap:14px;margin-top:14px">
-        <span class="iconbtn" id="loginLang">فارسی</span>
-        <span class="iconbtn" id="loginTheme">🌓</span>
+      <label class="field"><span class="lab" data-i="password">رمز عبور</span>
+        <input id="loginPw" type="password" autocomplete="current-password" autofocus></label>
+      <button class="btn primary block" id="loginBtn" data-i="sign_in">ورود</button>
+      <div class="foot">
+        <span class="ic" id="loginLang" title="language">EN</span>
+        <span class="ic" id="loginTheme" title="theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg></span>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ───────────────────────── APP ───────────────────────── -->
-<div id="app" class="hidden">
-  <header>
-    <div class="brand"><span class="logo">🍬</span> CandyTunnel <small id="verTag">panel</small></div>
-    <div class="spacer"></div>
-    <span class="iconbtn" id="langBtn">فارسی</span>
-    <span class="iconbtn" id="themeBtn">🌓</span>
-    <span class="iconbtn" id="logoutBtn" data-i18n="logout">Logout</span>
+<div id="app" hidden>
+  <header class="hd">
+    <div class="mk"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="18" cy="17" r="2.5"/></svg></div>
+    <div class="who"><b>CandyTunnel</b><small id="hostsub">—</small></div>
+    <div class="sp"></div>
+    <span class="ic" id="langBtn" title="language">EN</span>
+    <span class="ic" id="apBtn" title="appearance"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></span>
+    <span class="ic" id="logoutBtn" title="logout"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg></span>
   </header>
 
-  <div class="wrap">
-    <nav class="tabs" id="tabs">
-      <button data-tab="dash" class="active" data-i18n="tab_dash">Dashboard</button>
-      <button data-tab="inst" data-i18n="tab_inst">Instances</button>
-      <button data-tab="iptest" data-i18n="tab_iptest">IP Tester</button>
-      <button data-tab="speed" data-i18n="tab_speed">Speed Test</button>
-      <button data-tab="logs" data-i18n="tab_logs">Logs</button>
-    </nav>
-
-    <!-- Dashboard -->
-    <section id="tab-dash">
-      <div class="card">
-        <h2>🖥️ <span data-i18n="system">System</span></h2>
-        <div class="sub" data-i18n="system_sub">Host resources detected by CandyTunnel.</div>
-        <div class="grid cols" id="sysgrid"><div class="empty"><span class="spin"></span></div></div>
-      </div>
-      <div class="card">
-        <h2>🚇 <span data-i18n="tunnels_overview">Instances overview</span></h2>
-        <div class="sub" id="dashInstSub"></div>
-        <div id="dashInst"></div>
-      </div>
-    </section>
-
-    <!-- Instances -->
-    <section id="tab-inst" class="hidden">
-      <div class="card">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="flex:1">
-            <h2>🚇 <span data-i18n="tab_inst">Instances</span></h2>
-            <div class="sub" data-i18n="inst_sub">Create, configure and control tunnel instances.</div>
-          </div>
-          <button class="btn" id="newInstBtn">＋ <span data-i18n="new_instance">New</span></button>
-        </div>
-        <div id="instTable"></div>
-      </div>
-
-      <div class="card hidden" id="editCard">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-          <h2 style="flex:1" id="editTitle">✏️ <span data-i18n="edit_instance">Edit instance</span></h2>
-          <button class="btn ghost sm" id="closeEdit" data-i18n="close">Close</button>
-        </div>
-        <label class="field" style="max-width:320px;margin-bottom:12px">
-          <span class="lab" data-i18n="inst_name">Instance name</span>
-          <input id="f_name" placeholder="candy0">
-        </label>
-        <div id="formGroups"></div>
-        <div class="rowbtns" style="margin-top:8px">
-          <button class="btn" id="saveInst" data-i18n="save">Save</button>
-          <button class="btn ghost" id="cancelInst" data-i18n="cancel">Cancel</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- IP tester -->
-    <section id="tab-iptest" class="hidden">
-      <div class="card">
-        <h2>🎯 <span data-i18n="tab_iptest">Spoofed-IP Tester</span></h2>
-        <div class="sub" data-i18n="iptest_sub">Measure which spoofed source IPs survive your path. The chosen client instance config decides transport, port and peer. Run the server with <code>--check-allow-any</code> first.</div>
-        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
-          <label class="field"><span class="lab" data-i18n="instance">Instance</span><select id="t_inst"></select></label>
-          <label class="field"><span class="lab" data-i18n="timeout_ms">Timeout (ms)</span><input id="t_timeout" type="number" value="1500"></label>
-          <label class="field"><span class="lab" data-i18n="probes">Probes / IP</span><input id="t_probes" type="number" value="2"></label>
-          <label class="field"><span class="lab" data-i18n="workers">Workers</span><input id="t_workers" type="number" value="64"></label>
-        </div>
-        <label class="field" style="margin-top:12px">
-          <span class="lab" data-i18n="candidate_ips">Candidate IPs (one per line)</span>
-          <textarea id="t_ips" placeholder="8.8.8.8&#10;1.1.1.1&#10;208.67.222.222"></textarea>
-        </label>
-        <div class="rowbtns" style="margin-top:8px">
-          <button class="btn" id="runTest" data-i18n="run_test">Run test</button>
-          <span id="testStatus" style="align-self:center;color:var(--dim);font-size:13px"></span>
-        </div>
-      </div>
-      <div class="card hidden" id="testResultsCard">
-        <h2>📊 <span data-i18n="results">Results</span> <span id="testSummary" style="font-size:13px;color:var(--dim);font-weight:600"></span></h2>
-        <div id="testResults"></div>
-      </div>
-    </section>
-
-    <!-- Speed test -->
-    <section id="tab-speed" class="hidden">
-      <div class="card">
-        <h2>🚀 <span data-i18n="tab_speed">Speed Test</span></h2>
-        <div class="sub" data-i18n="speed_sub">Measure real end-to-end tunnel throughput with iperf3. Run <code>iperf3 -s</code> on the other end, then point the target at its TUN IP so traffic flows through the tunnel.</div>
-        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
-          <label class="field"><span class="lab" data-i18n="instance">Instance</span><select id="s_inst"></select></label>
-          <label class="field"><span class="lab" data-i18n="target">Target (peer TUN IP)</span><input id="s_target" placeholder="10.66.0.1"></label>
-          <label class="field"><span class="lab" data-i18n="port">Port</span><input id="s_port" type="number" value="5201"></label>
-          <label class="field"><span class="lab" data-i18n="duration_s">Duration (s)</span><input id="s_dur" type="number" value="10"></label>
-          <label class="field"><span class="lab" data-i18n="protocol">Protocol</span><select id="s_proto"><option value="tcp">TCP</option><option value="udp">UDP</option></select></label>
-        </div>
-        <label class="switch" style="margin-top:6px"><input type="checkbox" id="s_rev"><span class="track"></span><span data-i18n="reverse_dl">Reverse (measure download)</span></label>
-        <div class="rowbtns" style="margin-top:8px">
-          <button class="btn" id="runSpeed" data-i18n="run_speed">Run speed test</button>
-          <span id="speedStatus" style="align-self:center;color:var(--dim);font-size:13px"></span>
-        </div>
-      </div>
-      <div class="card hidden" id="speedResultsCard">
-        <h2>📈 <span data-i18n="results">Results</span></h2>
-        <div class="grid cols" id="speedResults"></div>
-      </div>
-    </section>
-
-    <!-- Logs -->
-    <section id="tab-logs" class="hidden">
-      <div class="card">
-        <h2>📜 <span data-i18n="tab_logs">Logs</span></h2>
-        <div class="grid" style="grid-template-columns:1fr auto auto auto;align-items:end;gap:10px">
-          <label class="field"><span class="lab" data-i18n="instance">Instance</span><select id="l_inst"></select></label>
-          <label class="field" style="width:120px"><span class="lab" data-i18n="lines">Lines</span><input id="l_lines" type="number" value="150"></label>
-          <button class="btn" id="loadLogs" data-i18n="refresh">Refresh</button>
-          <label class="switch" title="auto"><input type="checkbox" id="l_auto"><span class="track"></span></label>
-        </div>
-        <pre class="logs" id="logsOut" style="margin-top:14px"></pre>
-      </div>
-    </section>
+  <div class="dockZ">
+    <div class="dock" id="dock">
+      <button data-tab="dash" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg><span data-i="tab_dash">داشبورد</span></button>
+      <button data-tab="tun"><svg viewBox="0 0 24 24"><path d="M4 12h3l3-7 4 14 3-7h3"/></svg><span data-i="tab_tun">تونل‌ها</span><span class="n" id="dockTun"></span></button>
+      <button data-tab="test"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><path d="M7.2 12h2.3M11 12h2M14.5 12h2.3"/></svg><span data-i="tab_test">تستر IP</span></button>
+      <button data-tab="speed"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M12 3v3M21 12h-3M5.6 5.6l2.1 2.1"/><path d="M4 20a8 8 0 1116 0"/></svg><span data-i="tab_speed">تست سرعت</span></button>
+      <button data-tab="logs"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span data-i="tab_logs">گزارش‌ها</span></button>
+    </div>
   </div>
+
+  <div id="view"></div>
 </div>
 
+<div class="scrim" id="scrim"><div class="veil"></div><div class="dlg" id="dlg"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
-// ───────────────────────── i18n ─────────────────────────
-const I18N = {
-  en:{login_sub:"Web Management Panel",password:"Password",sign_in:"Sign in",logout:"Logout",
-    tab_dash:"Dashboard",tab_inst:"Instances",tab_iptest:"IP Tester",tab_speed:"Speed Test",tab_logs:"Logs",
-    speed_sub:"Measure real end-to-end tunnel throughput with iperf3. Run `iperf3 -s` on the other end, then point the target at its TUN IP so traffic flows through the tunnel.",
-    target:"Target (peer TUN IP)",port:"Port",duration_s:"Duration (s)",protocol:"Protocol",reverse_dl:"Reverse (measure download)",
-    run_speed:"Run speed test",upload:"Upload",download:"Download",mbps:"Mbit/s",
-    system:"System",system_sub:"Host resources detected by CandyTunnel.",
-    tunnels_overview:"Instances overview",inst_sub:"Create, configure and control tunnel instances.",
-    new_instance:"New",edit_instance:"Edit instance",inst_name:"Instance name",save:"Save",cancel:"Cancel",close:"Close",
-    iptest_sub:"Measure which spoofed source IPs survive your path. The chosen client instance config decides transport, port and peer. Run the server with --check-allow-any first.",
-    instance:"Instance",timeout_ms:"Timeout (ms)",probes:"Probes / IP",workers:"Workers",
-    candidate_ips:"Candidate IPs (one per line)",run_test:"Run test",results:"Results",
-    lines:"Lines",refresh:"Refresh",
-    cores:"CPU cores",memory:"Memory",uptime:"Uptime",load:"Load avg",hostname:"Host",version:"Version",
-    name:"Name",role:"Role",transport:"Transport",mode:"Mode",status:"Status",boot:"Boot",actions:"Actions",
-    start:"Start",stop:"Stop",restart:"Restart",enable:"Enable",disable:"Disable",edit:"Edit",remove:"Remove",
-    active:"active",inactive:"inactive",spoofing:"spoofing",nospoof:"no-spoof",enabled:"enabled",disabled:"disabled",invalid:"invalid",
-    no_instances:"No instances yet. Create one to get started.",
-    saved:"Saved",deleted:"Deleted",confirm_remove:"Remove this instance? This stops and deletes it.",
-    login_fail:"Login failed",running:"Running…",done:"Done",reachable:"reachable",timeout:"timeout",
-    rank:"#",latency:"Latency",best:"Best",no_results:"No reachable IPs found.",
-    g_ident:"Identity & Addressing",g_transport:"Transport",g_mux:"Multiplexing & FEC",g_quic:"QUIC",
-    g_sec:"Security",g_dpi:"DPI Obfuscation",g_tun:"TUN & Forwarding",g_perf:"Performance",g_log:"Logging",
-    need_name:"Instance name required",pick_instance:"Pick an instance first",need_ips:"Enter at least one IP"},
-  fa:{login_sub:"پنل مدیریت تحت وب",password:"رمز عبور",sign_in:"ورود",logout:"خروج",
-    tab_dash:"داشبورد",tab_inst:"نمونه‌ها",tab_iptest:"تستر آی‌پی",tab_speed:"تست سرعت",tab_logs:"گزارش‌ها",
-    speed_sub:"سرعت واقعی سرتاسری تانل را با iperf3 بسنجید. در سمت مقابل ‎iperf3 -s را اجرا کنید، سپس هدف را روی IP تانِ آن بگذارید تا ترافیک از داخل تانل عبور کند.",
-    target:"هدف (IP تانِ مقابل)",port:"پورت",duration_s:"مدت (ثانیه)",protocol:"پروتکل",reverse_dl:"معکوس (سنجش دانلود)",
-    run_speed:"اجرای تست سرعت",upload:"آپلود",download:"دانلود",mbps:"مگابیت/ث",
-    system:"سیستم",system_sub:"منابع سرور که CandyTunnel شناسایی کرده است.",
-    tunnels_overview:"نمای کلی نمونه‌ها",inst_sub:"ساخت، پیکربندی و کنترل نمونه‌های تانل.",
-    new_instance:"جدید",edit_instance:"ویرایش نمونه",inst_name:"نام نمونه",save:"ذخیره",cancel:"انصراف",close:"بستن",
-    iptest_sub:"بسنجید کدام آی‌پی‌های جعلی از مسیر شما عبور می‌کنند. پیکربندی نمونهٔ کلاینت انتخابی، پروتکل، پورت و مقصد را تعیین می‌کند. ابتدا سرور را با ‎--check-allow-any اجرا کنید.",
-    instance:"نمونه",timeout_ms:"مهلت (میلی‌ثانیه)",probes:"تعداد پروب / آی‌پی",workers:"کارگرها",
-    candidate_ips:"آی‌پی‌های کاندید (هر خط یکی)",run_test:"اجرای تست",results:"نتایج",
-    lines:"خطوط",refresh:"بازخوانی",
-    cores:"هسته‌های CPU",memory:"حافظه",uptime:"آپ‌تایم",load:"میانگین بار",hostname:"میزبان",version:"نسخه",
-    name:"نام",role:"نقش",transport:"پروتکل",mode:"حالت",status:"وضعیت",boot:"بوت",actions:"عملیات",
-    start:"شروع",stop:"توقف",restart:"ری‌استارت",enable:"فعال‌سازی بوت",disable:"غیرفعال بوت",edit:"ویرایش",remove:"حذف",
-    active:"فعال",inactive:"غیرفعال",spoofing:"جعل آی‌پی",nospoof:"بدون جعل",enabled:"فعال",disabled:"غیرفعال",invalid:"نامعتبر",
-    no_instances:"هنوز نمونه‌ای نیست. یکی بسازید تا شروع کنید.",
-    saved:"ذخیره شد",deleted:"حذف شد",confirm_remove:"این نمونه حذف شود؟ متوقف و پاک می‌شود.",
-    login_fail:"ورود ناموفق",running:"در حال اجرا…",done:"پایان",reachable:"قابل دسترس",timeout:"تایم‌اوت",
-    rank:"#",latency:"تأخیر",best:"بهترین",no_results:"هیچ آی‌پی قابل دسترسی پیدا نشد.",
-    g_ident:"هویت و آدرس‌دهی",g_transport:"پروتکل انتقال",g_mux:"مالتی‌پلکس و FEC",g_quic:"QUIC",
-    g_sec:"امنیت",g_dpi:"مبهم‌سازی DPI",g_tun:"TUN و فورواردینگ",g_perf:"کارایی",g_log:"گزارش‌گیری",
-    need_name:"نام نمونه لازم است",pick_instance:"ابتدا یک نمونه انتخاب کنید",need_ips:"حداقل یک آی‌پی وارد کنید"}
+const I18N={
+ fa:{login_sub:"پنل مدیریت تونل",password:"رمز عبور",sign_in:"ورود",
+  tab_dash:"داشبورد",tab_tun:"تونل‌ها",tab_test:"تستر IP",tab_speed:"تست سرعت",tab_logs:"گزارش‌ها",
+  system:"سیستم",sys_sub:"منابع این سرور.",cores:"هسته CPU",memory:"حافظه",uptime:"آپ‌تایم",load:"میانگین بار",
+  overview:"نمای کلی تونل‌ها",new_tunnel:"تونل جدید",no_tun:"هنوز تونلی ساخته نشده.",no_tun_sub:"برای شروع یک تونل بسازید — با «کد اتصال» یا فرم ساده.",
+  create_first:"ساخت اولین تونل",role_server:"سرور",role_client:"کلاینت",active:"فعال",inactive:"غیرفعال",invalid:"نامعتبر",
+  start:"شروع",stop:"توقف",restart:"ری‌استارت",edit:"ویرایش",spoofips:"لیست IP",code:"کد اتصال",remove:"حذف",
+  tun_list:"تونل‌ها",tun_sub:"ساخت، پیکربندی و کنترل تونل‌ها.",
+  add_title:"تونل جدید",tab_code:"با کد اتصال",tab_quick:"ساخت ساده",
+  code_help:"کد اتصال را از سرور مقابل کپی کنید و اینجا بچسبانید؛ بقیه تنظیمات خودکار پر می‌شود.",
+  conn_code:"کد اتصال",inst_name:"نام تونل",my_real:"IP واقعی این سرور",auto:"خودکار",
+  import:"ورود و ساخت",role:"نقش",peer_real:"IP واقعی سرور مقابل",protocol:"پروتکل",
+  my_spoof:"IPهای جعلی این سرور",peer_spoof:"IPهای جعلی سرور مقابل",one_per_line:"هر خط یک IP (یا رنج a-b یا CIDR)",
+  data_port:"پورت داده",psk:"کلید مشترک",psk_auto:"خالی = تولید خودکار",create:"ساخت تونل",
+  quick_help:"روی هر سرور این فرم را پر کنید. سمت سرور بسازید، «کد اتصال» بگیرید و در کلاینت وارد کنید.",
+  save:"ذخیره",cancel:"انصراف",close:"بستن",
+  edit_title:"ویرایش تونل",g_addr:"نشانی و هویت",g_trans:"حمل‌ونقل",g_mux:"مالتی‌پلکس و FEC",g_sec:"امنیت",g_dpi:"مبهم‌سازی DPI",g_tun:"TUN و فوروارد",g_perf:"کارایی",
+  spoof_title:"لیست IP جعلی",spoof_sub:"IPهای جعلی این تونل. هر خط یک IP، رنج a-b، یا CIDR.",
+  mine_list:"IPهای این سرور",peer_list:"IPهای سرور مقابل",ips_count:"آدرس",save_mine:"ذخیره لیست این سرور",save_peer:"ذخیره لیست مقابل",
+  code_title:"کد اتصال",code_sub:"این کد را کپی کنید و در پنلِ سرور مقابل، تب «با کد اتصال» وارد کنید.",copy:"کپی",copied:"کپی شد",
+  test_title:"تستر IP جعلی",test_sub:"کدام IPهای جعلی از مسیر عبور می‌کنند. یک سرور «گیرنده» و دیگری «فرستنده»؛ اول گیرنده را اجرا کنید.",
+  mode:"حالت",sender:"فرستنده",receiver:"گیرنده",candidate:"IPهای کاندید",target:"هدف (IP واقعی گیرنده)",
+  port:"پورت",packets:"بسته بر هر IP",timeout:"مهلت (ثانیه)",max_loss:"حداکثر افت (٪)",rate:"نرخ (بسته/ثانیه)",
+  run_test:"اجرا",stop_test:"توقف",results:"نتایج",ip:"IP",received:"دریافت",loss:"افت",status:"وضعیت",pass:"سالم",fail:"رد",
+  heard:"شنیده‌شده",passed:"سالم",sent:"ارسال",add_to_tun:"افزودن IPهای سالم به تونل",no_results:"نتیجه‌ای نیست.",
+  speed_title:"تست سرعت",speed_sub:"پهنای‌باند واقعی تونل با iperf3. سمت مقابل iperf3 -s را اجرا کنید و هدف را IP تانِ آن بگذارید.",
+  duration:"مدت (ث)",reverse:"معکوس (دانلود)",run_speed:"اجرا",upload:"آپلود",download:"دانلود",
+  logs_title:"گزارش‌ها",instance:"تونل",lines:"خطوط",refresh:"بازخوانی",autoref:"خودکار",
+  saved:"ذخیره شد",deleted:"حذف شد",confirm_del:"این تونل حذف شود؟ سرویس آن متوقف و فایلش پاک می‌شود.",
+  need_name:"نام تونل لازم است",pick_tun:"اول یک تونل بسازید",running:"در حال اجرا…",done:"پایان",
+  which_list:"افزودن به کدام لیست؟",apply:"افزودن"},
+ en:{login_sub:"Tunnel management panel",password:"Password",sign_in:"Sign in",
+  tab_dash:"Dashboard",tab_tun:"Tunnels",tab_test:"IP Tester",tab_speed:"Speed test",tab_logs:"Logs",
+  system:"System",sys_sub:"This server's resources.",cores:"CPU cores",memory:"Memory",uptime:"Uptime",load:"Load avg",
+  overview:"Tunnels overview",new_tunnel:"New tunnel",no_tun:"No tunnels yet.",no_tun_sub:"Create one to start — with a connection code or the simple form.",
+  create_first:"Create your first tunnel",role_server:"Server",role_client:"Client",active:"active",inactive:"inactive",invalid:"invalid",
+  start:"Start",stop:"Stop",restart:"Restart",edit:"Edit",spoofips:"IP list",code:"Conn code",remove:"Remove",
+  tun_list:"Tunnels",tun_sub:"Create, configure and control tunnels.",
+  add_title:"New tunnel",tab_code:"Connection code",tab_quick:"Simple create",
+  code_help:"Copy the connection code from the other server and paste it here; the rest fills in automatically.",
+  conn_code:"Connection code",inst_name:"Tunnel name",my_real:"This server's real IP",auto:"auto",
+  import:"Import & create",role:"Role",peer_real:"Peer's real IP",protocol:"Protocol",
+  my_spoof:"This server's spoofed IPs",peer_spoof:"Peer's spoofed IPs",one_per_line:"one IP (or a-b range / CIDR) per line",
+  data_port:"Data port",psk:"Pre-shared key",psk_auto:"empty = auto-generate",create:"Create tunnel",
+  quick_help:"Fill this on each server. On the server, create it, grab a connection code and import it on the client.",
+  save:"Save",cancel:"Cancel",close:"Close",
+  edit_title:"Edit tunnel",g_addr:"Addressing & identity",g_trans:"Transport",g_mux:"Multiplex & FEC",g_sec:"Security",g_dpi:"DPI obfuscation",g_tun:"TUN & forwarding",g_perf:"Performance",
+  spoof_title:"Spoofed IP list",spoof_sub:"This tunnel's spoofed IPs. One IP, an a-b range, or a CIDR per line.",
+  mine_list:"This server's IPs",peer_list:"Peer's IPs",ips_count:"addresses",save_mine:"Save this server's list",save_peer:"Save peer list",
+  code_title:"Connection code",code_sub:"Copy this and import it on the other server's panel, in the \"Connection code\" tab.",copy:"Copy",copied:"Copied",
+  test_title:"Spoofed-IP tester",test_sub:"Which spoofed IPs survive the path. One server is receiver, the other sender; start the receiver first.",
+  mode:"Mode",sender:"Sender",receiver:"Receiver",candidate:"Candidate IPs",target:"Target (receiver real IP)",
+  port:"Port",packets:"Packets per IP",timeout:"Timeout (s)",max_loss:"Max loss (%)",rate:"Rate (pps)",
+  run_test:"Run",stop_test:"Stop",results:"Results",ip:"IP",received:"Recv",loss:"Loss",status:"Status",pass:"ok",fail:"fail",
+  heard:"heard",passed:"passed",sent:"sent",add_to_tun:"Add passing IPs to a tunnel",no_results:"No results.",
+  speed_title:"Speed test",speed_sub:"Real tunnel throughput via iperf3. Run iperf3 -s on the far end and target its TUN IP.",
+  duration:"Duration (s)",reverse:"Reverse (download)",run_speed:"Run",upload:"Upload",download:"Download",
+  logs_title:"Logs",instance:"Tunnel",lines:"Lines",refresh:"Refresh",autoref:"auto",
+  saved:"Saved",deleted:"Deleted",confirm_del:"Remove this tunnel? Its service stops and its file is deleted.",
+  need_name:"Tunnel name required",pick_tun:"Create a tunnel first",running:"Running…",done:"Done",
+  which_list:"Add to which list?",apply:"Add"}
 };
-let LANG = localStorage.getItem("ct_lang") || "en";
-const t = k => (I18N[LANG][k] ?? I18N.en[k] ?? k);
-
+let LANG=localStorage.getItem("ct_lang")||"fa";
+const T=k=>(I18N[LANG][k]||I18N.en[k]||k);
 function applyLang(){
-  document.documentElement.lang = LANG;
-  document.documentElement.dir = LANG==="fa" ? "rtl" : "ltr";
-  document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent = t(el.getAttribute("data-i18n")); });
-  const label = LANG==="fa" ? "English" : "فارسی";
-  const lb=document.getElementById("langBtn"); if(lb) lb.textContent=label;
-  const lb2=document.getElementById("loginLang"); if(lb2) lb2.textContent=label;
-  if(META) renderForm();           // re-render form labels
-  if(!document.getElementById("app").classList.contains("hidden")) refreshActive();
+  document.documentElement.lang=LANG; document.documentElement.dir=LANG==="fa"?"rtl":"ltr";
+  document.documentElement.dataset.lang=LANG;
+  document.querySelectorAll("[data-i]").forEach(e=>e.textContent=T(e.dataset.i));
+  document.querySelectorAll("#langBtn,#loginLang").forEach(e=>e.textContent=LANG==="fa"?"EN":"فا");
+  if(STATE.authed) render();
 }
-function toggleLang(){ LANG = LANG==="fa"?"en":"fa"; localStorage.setItem("ct_lang",LANG); applyLang(); }
-
-// ───────────────────────── theme ─────────────────────────
-let THEME = localStorage.getItem("ct_theme") || "dark";
-function applyTheme(){ document.documentElement.setAttribute("data-theme",THEME); }
-function toggleTheme(){ THEME = THEME==="dark"?"light":"dark"; localStorage.setItem("ct_theme",THEME); applyTheme(); }
-
-// ───────────────────────── toast ─────────────────────────
-function toast(msg,kind){
-  const box=document.getElementById("toast");
-  const el=document.createElement("div"); el.className="t "+(kind||"");
-  el.textContent=msg; box.appendChild(el);
-  setTimeout(()=>{el.style.opacity="0";el.style.transition="opacity .3s";setTimeout(()=>el.remove(),300)},2600);
+function applyTheme(){
+  const t=localStorage.getItem("ct_theme")||"dark"; const a=localStorage.getItem("ct_accent")||"azure";
+  document.documentElement.dataset.t=t; document.documentElement.dataset.accent=a;
+  const tc=document.querySelector('meta[name=theme-color]'); if(tc) tc.content=(t==="dark"?"#070707":"#eef1f6");
 }
-
-// ───────────────────────── API ─────────────────────────
+function toast(msg,kind){const z=document.getElementById("toast");const t=document.createElement("div");
+  t.className="t "+(kind||"");t.textContent=msg;z.appendChild(t);setTimeout(()=>t.remove(),3200);}
 async function api(method,path,body){
-  const opt={method,headers:{"X-CandyTunnel":"1"},credentials:"same-origin"};
-  if(body!==undefined){opt.headers["Content-Type"]="application/json";opt.body=JSON.stringify(body);}
-  const r=await fetch(path,opt);
-  let data=null; try{data=await r.json();}catch(e){}
-  if(r.status===401){ showLogin(); throw new Error("unauth"); }
-  if(!r.ok){ throw new Error((data&&data.error)||("HTTP "+r.status)); }
-  return data;
+  const o={method,headers:{}};
+  if(body!==undefined){o.headers["Content-Type"]="application/json";o.body=JSON.stringify(body);}
+  if(method!=="GET")o.headers["X-CandyTunnel"]="1";
+  const r=await fetch(path,o);
+  let d=null; try{d=await r.json();}catch(e){}
+  if(!r.ok){throw new Error((d&&d.error)||("HTTP "+r.status));}
+  return d;
 }
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const STATE={authed:false,tab:"dash",instances:[],system:null,testTimer:null};
 
-// ───────────────────────── auth / routing ─────────────────────────
-function showLogin(){ document.getElementById("app").classList.add("hidden"); document.getElementById("login").classList.remove("hidden"); setTimeout(()=>document.getElementById("loginPw").focus(),50); }
-function showApp(){ document.getElementById("login").classList.add("hidden"); document.getElementById("app").classList.remove("hidden"); gotoTab("dash"); }
-
-async function doLogin(){
-  const pw=document.getElementById("loginPw").value;
-  try{ await api("POST","/api/login",{password:pw}); document.getElementById("loginPw").value=""; showApp(); }
-  catch(e){ toast(t("login_fail"),"err"); }
-}
-async function doLogout(){ try{await api("POST","/api/logout");}catch(e){} showLogin(); }
-
-let CURRENT="dash";
-function gotoTab(tab){
-  CURRENT=tab;
-  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
-  ["dash","inst","iptest","speed","logs"].forEach(x=>document.getElementById("tab-"+x).classList.toggle("hidden",x!==tab));
-  refreshActive();
-}
-function refreshActive(){
-  if(CURRENT==="dash") loadDashboard();
-  else if(CURRENT==="inst") loadInstances();
-  else if(CURRENT==="iptest") loadInstancePickers();
-  else if(CURRENT==="speed") loadInstancePickers();
-  else if(CURRENT==="logs") loadInstancePickers();
-}
-
-// ───────────────────────── dashboard ─────────────────────────
-function fmtUptime(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
-  return (d?d+"d ":"")+(h?h+"h ":"")+m+"m";}
-async function loadDashboard(){
-  try{
-    const sys=await api("GET","/api/system");
-    document.getElementById("verTag").textContent="v"+sys.binary_version;
-    const g=document.getElementById("sysgrid");
-    const stat=(k,v,sub)=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}${sub?` <small>${sub}</small>`:""}</div></div>`;
-    g.innerHTML =
-      stat(t("hostname"),esc(sys.hostname))+
-      stat(t("cores"),sys.cpu_cores)+
-      stat(t("memory"),sys.mem_available_gb.toFixed(1),"/ "+sys.mem_total_gb.toFixed(1)+" GB")+
-      stat(t("uptime"),fmtUptime(sys.uptime_secs))+
-      stat(t("load"),sys.load_avg.map(x=>x.toFixed(2)).join("  "))+
-      stat(t("version"),"v"+esc(sys.binary_version));
-  }catch(e){}
-  try{
-    const d=await api("GET","/api/instances");
-    const list=d.instances||[];
-    document.getElementById("dashInstSub").textContent =
-      list.length+" "+t("tab_inst").toLowerCase()+" · "+list.filter(i=>i.active).length+" "+t("active");
-    document.getElementById("dashInst").innerHTML = list.length? instTable(list,false) : `<div class="empty">${t("no_instances")}</div>`;
-  }catch(e){}
-}
-
-// ───────────────────────── instances table ─────────────────────────
-function statusPill(i){
-  if(!i.valid) return `<span class="pill bad"><span class="dot"></span>${t("invalid")}</span>`;
-  return i.active? `<span class="pill on"><span class="dot"></span>${t("active")}</span>`
-                 : `<span class="pill off"><span class="dot"></span>${t("inactive")}</span>`;
-}
-function instTable(list,withActions){
-  let rows=list.map(i=>{
-    const spoof = i.spoofing? `<span class="pill warn"><span class="dot"></span>${t("spoofing")}</span>`
-                            : `<span class="pill off"><span class="dot"></span>${t("nospoof")}</span>`;
-    const boot = i.enabled? `<span class="pill on"><span class="dot"></span>${t("enabled")}</span>`
-                          : `<span class="pill off"><span class="dot"></span>${t("disabled")}</span>`;
-    const transport = esc(i.uplink)+(i.uplink!==i.downlink? " / "+esc(i.downlink):"");
-    let acts="";
-    if(withActions){
-      const sa = i.active
-        ? `<button class="btn ghost sm" data-act="stop" data-n="${esc(i.name)}">${t("stop")}</button>
-           <button class="btn ghost sm" data-act="restart" data-n="${esc(i.name)}">${t("restart")}</button>`
-        : `<button class="btn sm" data-act="start" data-n="${esc(i.name)}">${t("start")}</button>`;
-      const be = i.enabled
-        ? `<button class="btn ghost sm" data-act="disable" data-n="${esc(i.name)}">${t("disable")}</button>`
-        : `<button class="btn ghost sm" data-act="enable" data-n="${esc(i.name)}">${t("enable")}</button>`;
-      acts=`<div class="rowbtns">${sa}${be}
-        <button class="btn ghost sm" data-edit="${esc(i.name)}">${t("edit")}</button>
-        <button class="btn danger sm" data-del="${esc(i.name)}">${t("remove")}</button></div>`;
-    }
-    return `<tr>
-      <td><b>${esc(i.name)}</b></td>
-      <td>${esc(i.role)}</td>
-      <td class="mono">${transport}</td>
-      <td>${spoof}</td>
-      <td>${statusPill(i)}</td>
-      <td>${boot}</td>
-      ${withActions?`<td>${acts}</td>`:""}</tr>`;
-  }).join("");
-  return `<table><thead><tr>
-    <th>${t("name")}</th><th>${t("role")}</th><th>${t("transport")}</th>
-    <th>${t("mode")}</th><th>${t("status")}</th><th>${t("boot")}</th>
-    ${withActions?`<th>${t("actions")}</th>`:""}</tr></thead><tbody>${rows}</tbody></table>`;
-}
-
-async function loadInstances(){
-  const host=document.getElementById("instTable");
-  host.innerHTML=`<div class="empty"><span class="spin"></span></div>`;
-  try{
-    const d=await api("GET","/api/instances");
-    const list=d.instances||[];
-    host.innerHTML = list.length? instTable(list,true) : `<div class="empty">${t("no_instances")}</div>`;
-    host.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>doAction(b.dataset.n,b.dataset.act));
-    host.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openEdit(b.dataset.edit));
-    host.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>doDelete(b.dataset.del));
-  }catch(e){ host.innerHTML=`<div class="empty">${esc(e.message)}</div>`; }
-}
-async function doAction(name,action){
-  try{ await api("POST",`/api/instances/${encodeURIComponent(name)}/action`,{action}); toast(action+" ✓","ok"); setTimeout(loadInstances,400); }
-  catch(e){ toast(esc(e.message),"err"); }
-}
-async function doDelete(name){
-  if(!confirm(t("confirm_remove")+"\n\n"+name)) return;
-  try{ await api("DELETE",`/api/instances/${encodeURIComponent(name)}`); toast(t("deleted"),"ok"); loadInstances(); }
-  catch(e){ toast(esc(e.message),"err"); }
-}
-
-// ───────────────────────── form schema ─────────────────────────
-let META=null;
-const SEL=(key)=>({udp:["udp","icmp","proto58","tcp","quic","ipip","gre"],
-  perf:["throughput","latency","balanced"],log:["error","warn","info","debug","trace"],role:["client","server"]}[key]);
-function FORM(){return [
- {g:"g_ident",f:[
-   ["role","select","role"],["real_ip","text"],["peer_real_ip","text"],
-   ["spoofed_ip","text"],["peer_spoofed_ip","text"],
-   ["spoofed_ip_pool","list"],["allowed_peers","list"]]},
- {g:"g_transport",f:[
-   ["uplink_protocol","select","udp"],["downlink_protocol","select","udp"],
-   ["data_port","num"],["shuffle_data_port","bool"],["shuffle_port_min","num"],["shuffle_port_max","num"],
-   ["icmp_id","num"],["random_icmp_id","bool"]]},
- {g:"g_mux",f:[
-   ["enable_multiplex","bool"],["multiplex_flush_ms","num"],["multiplex_max_payload","num"],
-   ["enable_fec","bool"],["fec_group_size","num"]]},
- {g:"g_quic",f:[
-   ["quic_server_name","text"],["quic_cert","text"],["quic_key","text"],["quic_alpn","text"],
-   ["quic_idle_timeout_ms","num"],["quic_max_data","num"],["quic_max_stream_data","num"],["quic_max_streams_bidi","num"]]},
- {g:"g_sec",f:[
-   ["pre_shared_key","text"],["enable_xor","bool"],["xor_key","text"]]},
- {g:"g_dpi",f:[
-   ["packet_padding","bool"],["packet_padding_max","num"],["ttl_jitter","bool"],
-   ["fake_tls_header","bool"],["random_dscp","bool"]]},
- {g:"g_tun",f:[
-   ["tun_name","text"],["tun_ip","text"],["tun_peer_ip","text"],["tun_netmask","text"],
-   ["tun_mtu","num"],["interface","text"],["forward_ports","ports"]]},
- {g:"g_perf",f:[
-   ["perf_mode","select","perf"],["auto_tune","bool"],["tunnel_count","num"],["mtu","num"],
-   ["channel_capacity","num"],["io_channel_capacity","num"],["runtime_worker_threads","num"],
-   ["send_threads","num"],["send_batch","num"],["recv_batch","num"]]},
- {g:"g_log",f:[["log_level","select","log"]]},
-];}
-const PRETTY=k=>k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
-
-function renderForm(){
-  const host=document.getElementById("formGroups"); if(!host) return;
-  const openFirst = !host.dataset.ready;
-  host.innerHTML = FORM().map((grp,gi)=>{
-    const body=grp.f.map(([key,type,sel])=>{
-      const id="f_"+key; const label=PRETTY(key);
-      let input;
-      if(type==="bool"){
-        return `<label class="switch full" title="${key}"><input type="checkbox" id="${id}"><span class="track"></span><span>${label}</span></label>`;
-      }else if(type==="select"){
-        const opts=SEL(sel).map(o=>`<option value="${o}">${o}</option>`).join("");
-        input=`<select id="${id}">${opts}</select>`;
-      }else if(type==="num"){ input=`<input id="${id}" type="number">`; }
-      else if(type==="list"||type==="ports"){ input=`<input id="${id}" placeholder="a, b, c">`; }
-      else{ input=`<input id="${id}">`; }
-      return `<label class="field"><span class="lab">${label} <span style="color:var(--muted);font-weight:400">· ${key}</span></span>${input}</label>`;
-    }).join("");
-    return `<details class="formgroup" ${gi===0?"open":""}><summary>${t(grp.g)}<span class="chev">▸</span></summary><div class="body">${body}</div></details>`;
-  }).join("");
-  host.dataset.ready="1";
-  if(FORM_DATA) fillForm(FORM_DATA);
-}
-
-let FORM_DATA=null, EDIT_NAME=null;
-function fillForm(cfg){
-  FORM().forEach(grp=>grp.f.forEach(([key,type])=>{
-    const el=document.getElementById("f_"+key); if(!el) return;
-    let v=cfg[key];
-    if(type==="bool"){ el.checked=!!v; }
-    else if(type==="list"||type==="ports"){ el.value=Array.isArray(v)?v.join(", "):(v??""); }
-    else{ el.value=(v===undefined||v===null)?"":v; }
-  }));
-}
-function collectForm(){
-  const cfg={};
-  FORM().forEach(grp=>grp.f.forEach(([key,type])=>{
-    const el=document.getElementById("f_"+key); if(!el) return;
-    if(type==="bool") cfg[key]=el.checked;
-    else if(type==="num") cfg[key]=parseInt(el.value||"0",10)||0;
-    else if(type==="list") cfg[key]=el.value.split(",").map(s=>s.trim()).filter(Boolean);
-    else if(type==="ports") cfg[key]=el.value.split(",").map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
-    else cfg[key]=el.value;
-  }));
-  return cfg;
-}
-
-function openEditCard(){ document.getElementById("editCard").classList.remove("hidden"); document.getElementById("editCard").scrollIntoView({behavior:"smooth"}); }
-async function openEdit(name){
-  try{
-    const d=await api("GET","/api/instances/"+encodeURIComponent(name));
-    EDIT_NAME=name; FORM_DATA=d.config;
-    document.getElementById("f_name").value=name;
-    document.getElementById("f_name").disabled=true;
-    renderForm(); fillForm(d.config); openEditCard();
-  }catch(e){ toast(esc(e.message),"err"); }
-}
-function openNew(){
-  EDIT_NAME=null; FORM_DATA=null;
-  document.getElementById("f_name").value=""; document.getElementById("f_name").disabled=false;
-  const host=document.getElementById("formGroups"); host.dataset.ready=""; renderForm();
-  // defaults
-  fillForm({role:"client",uplink_protocol:"udp",downlink_protocol:"udp",data_port:51820,
-    enable_multiplex:true,multiplex_flush_ms:1,multiplex_max_payload:1380,fec_group_size:4,icmp_id:17185,
-    shuffle_port_min:49152,shuffle_port_max:65535,quic_server_name:"CandyTunnel",quic_alpn:"h3",
-    quic_idle_timeout_ms:30000,quic_max_data:134217728,quic_max_stream_data:16777216,quic_max_streams_bidi:256,
-    packet_padding_max:64,tun_name:"candy0",tun_netmask:"255.255.255.252",tun_mtu:1380,mtu:1380,interface:"eth0",
-    perf_mode:"throughput",auto_tune:true,tunnel_count:4,channel_capacity:8192,io_channel_capacity:16384,log_level:"info",
-    send_threads:0,send_batch:64,recv_batch:64,
-    tun_ip:"10.66.0.1",tun_peer_ip:"10.66.0.2"});
-  openEditCard();
-}
-async function saveInstance(){
-  const name=document.getElementById("f_name").value.trim();
-  if(!name){ toast(t("need_name"),"err"); return; }
-  const config=collectForm();
-  try{ await api("POST","/api/instances",{name,config}); toast(t("saved"),"ok");
-    document.getElementById("editCard").classList.add("hidden"); loadInstances(); }
-  catch(e){ toast(esc(e.message),"err"); }
-}
-
-// ───────────────────────── instance pickers (iptest/logs) ─────────────────────────
-async function loadInstancePickers(){
-  try{
-    const d=await api("GET","/api/instances");
-    const list=d.instances||[];
-    ["t_inst","l_inst","s_inst"].forEach(id=>{
-      const sel=document.getElementById(id); if(!sel) return;
-      const cur=sel.value;
-      sel.innerHTML=list.map(i=>`<option value="${esc(i.name)}">${esc(i.name)} (${esc(i.role)})</option>`).join("");
-      if(cur) sel.value=cur;
-    });
-  }catch(e){}
-}
-// Prefill the speed-test target with the selected instance's peer TUN IP.
-async function prefillSpeedTarget(){
-  const name=document.getElementById("s_inst").value; if(!name) return;
-  try{
-    const d=await api("GET","/api/instances/"+encodeURIComponent(name));
-    if(d.config && d.config.tun_peer_ip) document.getElementById("s_target").value=d.config.tun_peer_ip;
-  }catch(e){}
-}
-
-// ───────────────────────── IP tester ─────────────────────────
-let TEST_POLL=null;
-function latClass(ms){ return ms<80?"lat-good":ms<200?"lat-mid":"lat-bad"; }
-async function runTest(){
-  const instance=document.getElementById("t_inst").value;
-  if(!instance){ toast(t("pick_instance"),"err"); return; }
-  const ips=document.getElementById("t_ips").value;
-  if(!ips.trim()){ toast(t("need_ips"),"err"); return; }
-  const timeout_ms=parseInt(document.getElementById("t_timeout").value||"1500",10);
-  const probes=parseInt(document.getElementById("t_probes").value||"2",10);
-  const workers=parseInt(document.getElementById("t_workers").value||"64",10);
-  const btn=document.getElementById("runTest"); btn.disabled=true;
-  document.getElementById("testStatus").innerHTML=`<span class="spin"></span> ${t("running")}`;
-  try{
-    const r=await api("POST","/api/iptest",{instance,ips,timeout_ms,probes,workers});
-    pollTest(r.job_id);
-  }catch(e){ toast(esc(e.message),"err"); btn.disabled=false; document.getElementById("testStatus").textContent=""; }
-}
-function pollTest(id){
-  clearInterval(TEST_POLL);
-  TEST_POLL=setInterval(async()=>{
-    try{
-      const s=await api("GET","/api/iptest/"+id);
-      if(s.state==="running"){
-        document.getElementById("testStatus").innerHTML=`<span class="spin"></span> ${t("running")} · ${s.elapsed_secs}s`;
-        return;
-      }
-      clearInterval(TEST_POLL);
-      document.getElementById("runTest").disabled=false;
-      if(s.state==="error"){ document.getElementById("testStatus").textContent=""; toast(esc(s.error||"error"),"err"); return; }
-      document.getElementById("testStatus").textContent=`${t("done")} · ${s.elapsed_secs}s`;
-      renderTestResults(s);
-    }catch(e){ clearInterval(TEST_POLL); document.getElementById("runTest").disabled=false; }
-  },1000);
-}
-function renderTestResults(s){
-  document.getElementById("testResultsCard").classList.remove("hidden");
-  document.getElementById("testSummary").textContent =
-    `· ${s.reachable}/${s.total} ${t("reachable")}`;
-  const host=document.getElementById("testResults");
-  const ok=(s.results||[]).filter(r=>r.latency_ms!==null && r.latency_ms!==undefined);
-  if(!ok.length){ host.innerHTML=`<div class="empty">${t("no_results")}</div>`; return; }
-  let rank=0;
-  const rows=ok.map(r=>{
-    rank++;
-    return `<tr><td class="ranknum">${rank}</td><td class="mono"><b>${esc(r.ip)}</b></td>
-      <td class="${latClass(r.latency_ms)}">${r.latency_ms} ms</td></tr>`;
-  }).join("");
-  host.innerHTML=`<table><thead><tr><th>${t("rank")}</th><th>IP</th><th>${t("latency")}</th></tr></thead><tbody>${rows}</tbody></table>`;
-}
-
-// ───────────────────────── speed test ─────────────────────────
-let SPEED_POLL=null;
-function speedClass(m){ return m>=200?"lat-good":m>=50?"lat-mid":"lat-bad"; }
-async function runSpeed(){
-  const target=document.getElementById("s_target").value.trim();
-  if(!target){ toast(t("target"),"err"); return; }
-  const port=parseInt(document.getElementById("s_port").value||"5201",10);
-  const duration=parseInt(document.getElementById("s_dur").value||"10",10);
-  const udp=document.getElementById("s_proto").value==="udp";
-  const reverse=document.getElementById("s_rev").checked;
-  const btn=document.getElementById("runSpeed"); btn.disabled=true;
-  document.getElementById("speedStatus").innerHTML=`<span class="spin"></span> ${t("running")}`;
-  try{
-    const r=await api("POST","/api/speedtest",{target,port,duration,udp,reverse});
-    pollSpeed(r.job_id);
-  }catch(e){ toast(esc(e.message),"err"); btn.disabled=false; document.getElementById("speedStatus").textContent=""; }
-}
-function pollSpeed(id){
-  clearInterval(SPEED_POLL);
-  SPEED_POLL=setInterval(async()=>{
-    try{
-      const s=await api("GET","/api/speedtest/"+id);
-      if(s.state==="running"){ document.getElementById("speedStatus").innerHTML=`<span class="spin"></span> ${t("running")} · ${s.elapsed_secs}s`; return; }
-      clearInterval(SPEED_POLL);
-      document.getElementById("runSpeed").disabled=false;
-      if(s.state==="error"){ document.getElementById("speedStatus").textContent=""; toast(esc(s.error||"error"),"err"); return; }
-      document.getElementById("speedStatus").textContent=`${t("done")} · ${s.elapsed_secs}s · ${s.protocol.toUpperCase()}`;
-      renderSpeed(s);
-    }catch(e){ clearInterval(SPEED_POLL); document.getElementById("runSpeed").disabled=false; }
-  },1000);
-}
-function renderSpeed(s){
-  document.getElementById("speedResultsCard").classList.remove("hidden");
-  const tile=(k,v)=>{
-    const has=(v!==null&&v!==undefined);
-    const val=has?v.toFixed(1):"—";
-    const cls=has?speedClass(v):"";
-    return `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${val} <small>${t("mbps")}</small></div></div>`;
-  };
-  document.getElementById("speedResults").innerHTML = tile(t("upload"),s.mbps_sent)+tile(t("download"),s.mbps_recv);
-}
-
-// ───────────────────────── logs ─────────────────────────
-let LOG_POLL=null;
-async function loadLogs(){
-  const name=document.getElementById("l_inst").value;
-  if(!name){ return; }
-  const lines=parseInt(document.getElementById("l_lines").value||"150",10);
-  try{
-    const d=await api("GET",`/api/instances/${encodeURIComponent(name)}/logs?lines=${lines}`);
-    const out=document.getElementById("logsOut"); out.textContent=d.logs||"(empty)"; out.scrollTop=out.scrollHeight;
-  }catch(e){ document.getElementById("logsOut").textContent=esc(e.message); }
-}
-function toggleAutoLogs(){
-  clearInterval(LOG_POLL);
-  if(document.getElementById("l_auto").checked){ LOG_POLL=setInterval(loadLogs,3000); loadLogs(); }
-}
-
-// ───────────────────────── util ─────────────────────────
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-
-// ───────────────────────── boot ─────────────────────────
-function wire(){
-  document.getElementById("loginBtn").onclick=doLogin;
-  document.getElementById("loginPw").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
-  document.getElementById("loginLang").onclick=toggleLang;
-  document.getElementById("loginTheme").onclick=toggleTheme;
-  document.getElementById("langBtn").onclick=toggleLang;
-  document.getElementById("themeBtn").onclick=toggleTheme;
-  document.getElementById("logoutBtn").onclick=doLogout;
-  document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>gotoTab(b.dataset.tab));
-  document.getElementById("newInstBtn").onclick=openNew;
-  document.getElementById("saveInst").onclick=saveInstance;
-  document.getElementById("cancelInst").onclick=()=>document.getElementById("editCard").classList.add("hidden");
-  document.getElementById("closeEdit").onclick=()=>document.getElementById("editCard").classList.add("hidden");
-  document.getElementById("runTest").onclick=runTest;
-  document.getElementById("runSpeed").onclick=runSpeed;
-  document.getElementById("s_inst").onchange=prefillSpeedTarget;
-  document.getElementById("loadLogs").onclick=loadLogs;
-  document.getElementById("l_auto").onchange=toggleAutoLogs;
-  META=true; // enable form rendering
-}
 async function boot(){
-  applyTheme(); wire(); applyLang();
-  try{
-    const s=await api("GET","/api/session");
-    if(s.authenticated){ showApp(); } else { showLogin(); }
-  }catch(e){ showLogin(); }
+  applyTheme();
+  try{const s=await api("GET","/api/session");STATE.authed=!!(s&&s.authenticated);}catch(e){}
+  document.getElementById("boot").classList.add("gone");
+  if(STATE.authed){showApp();}else{showLogin();}
 }
+function showLogin(){document.getElementById("app").hidden=true;document.getElementById("login").hidden=false;applyLang();
+  setTimeout(()=>document.getElementById("loginPw").focus(),50);}
+function showApp(){document.getElementById("login").hidden=true;document.getElementById("app").hidden=false;applyLang();loadSystem();render();}
+async function doLogin(){const pw=document.getElementById("loginPw").value;
+  try{await api("POST","/api/login",{password:pw});STATE.authed=true;showApp();}catch(e){toast(e.message,"err");}}
+async function doLogout(){try{await api("POST","/api/logout",{});}catch(e){}STATE.authed=false;location.reload();}
+async function loadSystem(){try{STATE.system=await api("GET","/api/system");}catch(e){}
+  if(STATE.system){document.getElementById("hostsub").textContent=STATE.system.hostname+" · v"+STATE.system.binary_version;}
+  if(STATE.tab==="dash")render();}
+
+function setTab(t){STATE.tab=t;document.querySelectorAll("#dock button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  if(STATE.testTimer&&t!=="test"){clearInterval(STATE.testTimer);STATE.testTimer=null;}render();}
+function render(){const v=document.getElementById("view");if(!STATE.authed)return;
+  ({dash:renderDash,tun:renderTun,test:renderTest,speed:renderSpeed,logs:renderLogs}[STATE.tab]||renderDash)(v);}
+
+function fmtUptime(s){s=s||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  return (d?d+"d ":"")+(h?h+"h ":"")+m+"m";}
+async function renderDash(v){
+  const sys=STATE.system||{cpu_cores:0,mem_total_gb:0,mem_available_gb:0,uptime_secs:0,load_avg:[0,0,0]};
+  const memUsed=Math.max(0,sys.mem_total_gb-sys.mem_available_gb);
+  const memPct=sys.mem_total_gb?Math.round(memUsed/sys.mem_total_gb*100):0;
+  v.innerHTML=`
+   <div class="card">
+    <h2><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 20h8M12 18v2"/></svg>${T("system")}</h2>
+    <div class="sub">${T("sys_sub")}</div>
+    <div class="res">
+     <div class="t"><span class="k">${T("cores")}</span><span class="v num">${sys.cpu_cores}</span><span class="s">&nbsp;</span></div>
+     <div class="t"><span class="k">${T("memory")}</span><span class="v num">${memPct}<em>%</em></span>
+       <div class="bar"><i style="width:${memPct}%"></i></div><span class="s num">${memUsed.toFixed(1)} / ${sys.mem_total_gb.toFixed(1)} GB</span></div>
+     <div class="t"><span class="k">${T("uptime")}</span><span class="v num" style="font-size:19px">${fmtUptime(sys.uptime_secs)}</span><span class="s">&nbsp;</span></div>
+     <div class="t"><span class="k">${T("load")}</span><span class="v num">${(sys.load_avg[0]||0).toFixed(2)}</span><span class="s num">${(sys.load_avg[1]||0).toFixed(2)} · ${(sys.load_avg[2]||0).toFixed(2)}</span></div>
+    </div>
+   </div>
+   <div class="sectitle"><h3>${T("overview")}</h3><span class="ln"></span></div>
+   <div id="dashList"></div>`;
+  await loadInstances();
+  const list=document.getElementById("dashList");if(!list)return;
+  if(!STATE.instances.length){list.innerHTML=`<div class="empty"><b>${T("no_tun")}</b>${T("no_tun_sub")}<div style="margin-top:14px"><button class="btn primary" onclick="setTab('tun')">${T("create_first")}</button></div></div>`;return;}
+  list.innerHTML=STATE.instances.map(instRow).join("");
+}
+
+async function loadInstances(){try{const d=await api("GET","/api/instances");STATE.instances=d.instances||[];}catch(e){STATE.instances=[];}
+  document.getElementById("dockTun").textContent=STATE.instances.length||"";}
+function statusDot(i){return i.active?"on":(i.valid?"":"bad");}
+function instRow(i){
+  const roleTxt=i.role==="server"?T("role_server"):T("role_client");
+  const st=i.active?`<span class="chip ok">${T("active")}</span>`:(i.valid?`<span class="chip">${T("inactive")}</span>`:`<span class="chip bad">${T("invalid")}</span>`);
+  const proto=esc((i.uplink||"")+(i.downlink&&i.downlink!==i.uplink?"→"+i.downlink:""));
+  const codeBtn=i.role==="server"?`<button class="iic" title="${T("code")}" onclick="showCode('${esc(i.name)}')"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/><path d="M9 12h6"/></svg></button>`:"";
+  const toggle=i.active
+    ?`<button class="iic stop" title="${T("stop")}" onclick="act('${esc(i.name)}','stop')"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>`
+    :`<button class="iic go" title="${T("start")}" onclick="act('${esc(i.name)}','start')"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg></button>`;
+  return `<div class="inst">
+    <span class="dot ${statusDot(i)}"></span>
+    <div class="id"><b>${esc(i.name)}</b><div class="meta"><span class="chip role">${roleTxt}</span><span class="chip">${proto||"—"}</span>${st}</div></div>
+    <div class="acts">
+      ${toggle}
+      <button class="iic" title="${T("restart")}" onclick="act('${esc(i.name)}','restart')"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg></button>
+      <button class="iic" title="${T("spoofips")}" onclick="showSpoof('${esc(i.name)}')"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+      <button class="iic" title="${T("edit")}" onclick="showEdit('${esc(i.name)}')"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+      ${codeBtn}
+      <button class="iic stop" title="${T("remove")}" onclick="delInst('${esc(i.name)}')"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>
+    </div></div>`;
+}
+async function renderTun(v){
+  v.innerHTML=`<div class="card"><div style="display:flex;align-items:center;gap:12px">
+     <div style="flex:1"><h2><svg viewBox="0 0 24 24"><path d="M4 12h3l3-7 4 14 3-7h3"/></svg>${T("tun_list")}</h2><div class="sub" style="margin:0">${T("tun_sub")}</div></div>
+     <button class="btn primary" onclick="showAdd()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>${T("new_tunnel")}</button>
+    </div><div id="tunList" style="margin-top:14px"></div></div>`;
+  await loadInstances();
+  const list=document.getElementById("tunList");
+  list.innerHTML=STATE.instances.length?STATE.instances.map(instRow).join(""):`<div class="empty"><b>${T("no_tun")}</b>${T("no_tun_sub")}</div>`;
+}
+async function act(name,action){try{await api("POST","/api/instances/"+encodeURIComponent(name)+"/action",{action});
+  toast(name+": "+action,"ok");setTimeout(()=>render(),700);}catch(e){toast(e.message,"err");}}
+async function delInst(name){if(!confirm(T("confirm_del")))return;
+  try{await api("DELETE","/api/instances/"+encodeURIComponent(name));toast(T("deleted"),"ok");render();}catch(e){toast(e.message,"err");}}
+
+function openDlg(html){document.getElementById("dlg").innerHTML=html;document.getElementById("scrim").classList.add("on");}
+function closeDlg(){document.getElementById("scrim").classList.remove("on");}
+document.getElementById("scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeDlg();});
+
+function showAdd(){
+  openDlg(`<div class="dh"><b>${T("add_title")}</b><button class="ic x" onclick="closeDlg()">✕</button></div>
+   <div class="db">
+    <div class="tabs"><button id="atCode" class="on" onclick="addTab('code')">${T("tab_code")}</button><button id="atQuick" onclick="addTab('quick')">${T("tab_quick")}</button></div>
+    <div id="addBody"></div>
+   </div>`);
+  addTab("code");
+}
+function addTab(which){
+  document.getElementById("atCode").classList.toggle("on",which==="code");
+  document.getElementById("atQuick").classList.toggle("on",which==="quick");
+  const b=document.getElementById("addBody");
+  if(which==="code"){
+    b.innerHTML=`<div class="hint" style="margin-bottom:12px">${T("code_help")}</div>
+     <label class="field"><span class="lab">${T("conn_code")}</span><textarea id="imCode" placeholder="CT1...." style="min-height:90px"></textarea></label>
+     <div class="row"><label class="field"><span class="lab">${T("inst_name")}</span><input id="imName" placeholder="iran-1"></label>
+      <label class="field"><span class="lab">${T("my_real")}</span><input id="imReal" placeholder="${T("auto")}"></label></div>
+     <button class="btn primary block" onclick="doImport()">${T("import")}</button>`;
+    prefillReal("imReal");
+  }else{
+    b.innerHTML=`<div class="hint" style="margin-bottom:12px">${T("quick_help")}</div>
+     <div class="row">
+      <label class="field"><span class="lab">${T("inst_name")}</span><input id="qName" placeholder="ger-1"></label>
+      <label class="field"><span class="lab">${T("role")}</span><select id="qRole"><option value="server">${T("role_server")}</option><option value="client">${T("role_client")}</option></select></label>
+     </div>
+     <div class="row">
+      <label class="field"><span class="lab">${T("my_real")}</span><input id="qReal" placeholder="${T("auto")}"></label>
+      <label class="field"><span class="lab">${T("peer_real")}</span><input id="qPeer" placeholder="203.0.113.9"></label>
+     </div>
+     <div class="row">
+      <label class="field"><span class="lab">${T("protocol")}</span><select id="qProto"><option value="udp">UDP</option><option value="icmp">ICMP</option><option value="tcp">TCP</option><option value="proto58">Proto58</option><option value="gre">GRE</option><option value="ipip">IPIP</option></select></label>
+      <label class="field"><span class="lab">${T("data_port")}</span><input id="qPort" type="number" value="51820"></label>
+     </div>
+     <label class="field"><span class="lab">${T("my_spoof")}</span><textarea id="qMine" placeholder="8.8.4.4&#10;1.1.1.1"></textarea><div class="hint">${T("one_per_line")}</div></label>
+     <label class="field"><span class="lab">${T("peer_spoof")}</span><textarea id="qPeerS" placeholder="1.2.3.4&#10;5.6.7.8"></textarea></label>
+     <label class="field"><span class="lab">${T("psk")}</span><input id="qPsk" placeholder="${T("psk_auto")}"></label>
+     <button class="btn primary block" onclick="doQuick()">${T("create")}</button>`;
+    prefillReal("qReal");
+  }
+}
+async function prefillReal(id){try{const n=await api("GET","/api/netinfo");const el=document.getElementById(id);
+  if(el&&n&&n.real_ip)el.value=n.real_ip;}catch(e){}}
+async function doImport(){
+  const code=document.getElementById("imCode").value.trim();const name=document.getElementById("imName").value.trim();
+  if(!name){toast(T("need_name"),"err");return;}
+  try{await api("POST","/api/code/import",{code,name,real_ip:document.getElementById("imReal").value.trim()});
+    toast(T("saved"),"ok");closeDlg();render();}catch(e){toast(e.message,"err");}
+}
+const splitIPs=s=>s.split(/[\s,]+/).map(x=>x.trim()).filter(Boolean);
+async function doQuick(){
+  const name=document.getElementById("qName").value.trim();if(!name){toast(T("need_name"),"err");return;}
+  const body={name,role:document.getElementById("qRole").value,real_ip:document.getElementById("qReal").value.trim(),
+    peer_real_ip:document.getElementById("qPeer").value.trim(),protocol:document.getElementById("qProto").value,
+    data_port:parseInt(document.getElementById("qPort").value)||51820,
+    spoofed_ips:splitIPs(document.getElementById("qMine").value),peer_spoofed_ips:splitIPs(document.getElementById("qPeerS").value),
+    pre_shared_key:document.getElementById("qPsk").value.trim()};
+  try{await api("POST","/api/quickadd",body);toast(T("saved"),"ok");closeDlg();render();}catch(e){toast(e.message,"err");}
+}
+
+async function showCode(name){
+  try{const d=await api("GET","/api/instances/"+encodeURIComponent(name)+"/code");
+   openDlg(`<div class="dh"><b>${T("code_title")}</b><button class="ic x" onclick="closeDlg()">✕</button></div>
+    <div class="db"><div class="hint" style="margin-bottom:12px">${T("code_sub")}</div>
+     <div class="codebox" id="codeText">${esc(d.code)}</div>
+     <button class="btn primary block" style="margin-top:14px" onclick="copyCode(this)" data-code="${esc(d.code)}">${T("copy")}</button></div>`);
+  }catch(e){toast(e.message,"err");}
+}
+function copyCode(btn){const c=btn.dataset.code;if(navigator.clipboard)navigator.clipboard.writeText(c);toast(T("copied"),"ok");}
+
+async function showSpoof(name){
+  openDlg(`<div class="dh"><b>${T("spoof_title")} · ${esc(name)}</b><button class="ic x" onclick="closeDlg()">✕</button></div>
+   <div class="db"><div class="hint" style="margin-bottom:12px">${T("spoof_sub")}</div>
+    <label class="field"><span class="lab">${T("mine_list")} <span id="cMine" class="chip" style="margin-inline-start:6px"></span></span>
+      <textarea id="spMine"></textarea></label>
+    <button class="btn block" style="margin-bottom:16px" onclick="saveSpoof('${esc(name)}','mine')">${T("save_mine")}</button>
+    <label class="field"><span class="lab">${T("peer_list")} <span id="cPeer" class="chip" style="margin-inline-start:6px"></span></span>
+      <textarea id="spPeer"></textarea></label>
+    <button class="btn block" onclick="saveSpoof('${esc(name)}','peer')">${T("save_peer")}</button>
+   </div>`);
+  for(const w of ["mine","peer"]){try{const d=await api("GET","/api/instances/"+encodeURIComponent(name)+"/spoofips/"+w);
+    document.getElementById(w==="mine"?"spMine":"spPeer").value=d.content||"";
+    document.getElementById(w==="mine"?"cMine":"cPeer").textContent=(d.count||0)+" "+T("ips_count");}catch(e){}}
+}
+async function saveSpoof(name,which){
+  const content=document.getElementById(which==="mine"?"spMine":"spPeer").value;
+  try{const d=await api("POST","/api/instances/"+encodeURIComponent(name)+"/spoofips/"+which,{content});
+    toast(T("saved")+" ("+d.count+")","ok");
+    document.getElementById(which==="mine"?"cMine":"cPeer").textContent=(d.count||0)+" "+T("ips_count");}catch(e){toast(e.message,"err");}
+}
+
+const FG=[
+ ["g_addr",[["role","role",["client","server"]],["real_ip"],["peer_real_ip"],["spoofed_ip"],["peer_spoofed_ip"],["spoof_rotation","bool"]]],
+ ["g_trans",[["uplink_protocol","sel",["udp","icmp","proto58","tcp","quic","ipip","gre"]],["downlink_protocol","sel",["udp","icmp","proto58","tcp","quic","ipip","gre"]],["data_port","num"],["shuffle_data_port","bool"],["icmp_id","num"]]],
+ ["g_mux",[["enable_multiplex","bool"],["multiplex_flush_ms","num"],["multiplex_max_payload","num"],["enable_fec","bool"],["fec_group_size","num"]]],
+ ["g_sec",[["pre_shared_key"],["enable_xor","bool"],["xor_key"]]],
+ ["g_dpi",[["packet_padding","bool"],["packet_padding_max","num"],["ttl_jitter","bool"],["fake_tls_header","bool"],["random_dscp","bool"]]],
+ ["g_tun",[["tun_name"],["tun_ip"],["tun_peer_ip"],["tun_netmask"],["tun_mtu","num"],["mtu","num"],["interface"]]],
+ ["g_perf",[["perf_mode","sel",["throughput","latency","balanced"]],["auto_tune","bool"],["tunnel_count","num"],["send_threads","num"],["send_batch","num"],["recv_batch","num"],["log_level","sel",["error","warn","info","debug","trace"]]]]
+];
+function fieldCtl(cfg,def){
+  const key=def[0],kind=def[1]||"str",opts=def[2];let val=cfg[key];
+  if(kind==="bool")return `<label class="sw full"><input type="checkbox" data-k="${key}" ${val?"checked":""}><span class="track"></span><span>${key}</span></label>`;
+  const lab=`<span class="lab">${key}</span>`;
+  if(kind==="sel"||kind==="role")return `<label class="field">${lab}<select data-k="${key}">${opts.map(o=>`<option ${o===val?"selected":""}>${o}</option>`).join("")}</select></label>`;
+  const t=kind==="num"?"number":"text";
+  if(Array.isArray(val))val=val.join(", ");
+  return `<label class="field">${lab}<input type="${t}" data-k="${key}" value="${esc(val)}"></label>`;
+}
+async function showEdit(name){
+  try{const d=await api("GET","/api/instances/"+encodeURIComponent(name));const cfg=d.config;
+   const groups=FG.map(([g,fields])=>`<details class="grp"><summary>${T(g)}</summary><div class="gb">${fields.map(f=>fieldCtl(cfg,f)).join("")}</div></details>`).join("");
+   openDlg(`<div class="dh"><b>${T("edit_title")} · ${esc(name)}</b><button class="ic x" onclick="closeDlg()">✕</button></div>
+    <div class="db"><div id="editGroups">${groups}</div></div>
+    <div class="df"><button class="btn" onclick="closeDlg()">${T("cancel")}</button><button class="btn primary" onclick="saveEdit('${esc(name)}')">${T("save")}</button></div>`);
+   window._editCfg=cfg;
+  }catch(e){toast(e.message,"err");}
+}
+async function saveEdit(name){
+  const cfg=Object.assign({},window._editCfg);
+  document.querySelectorAll("#editGroups [data-k]").forEach(el=>{
+    const k=el.dataset.k;
+    if(el.type==="checkbox")cfg[k]=el.checked;
+    else if(el.type==="number")cfg[k]=parseInt(el.value)||0;
+    else cfg[k]=el.value;
+  });
+  ["spoofed_ip_pool","peer_spoofed_ip_pool","allowed_peers","forward_ports"].forEach(k=>{
+    if(typeof cfg[k]==="string")cfg[k]=splitIPs(cfg[k]).map(x=>k==="forward_ports"?(parseInt(x)||0):x).filter(x=>x!==0&&x!=="");
+  });
+  try{await api("POST","/api/instances",{name,config:cfg});toast(T("saved"),"ok");closeDlg();render();}catch(e){toast(e.message,"err");}
+}
+
+function renderTest(v){
+  v.innerHTML=`<div class="card">
+    <h2><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><path d="M7.2 12h2.3M11 12h2M14.5 12h2.3"/></svg>${T("test_title")}</h2>
+    <div class="sub">${T("test_sub")}</div>
+    <div class="row">
+     <label class="field"><span class="lab">${T("mode")}</span><select id="tMode"><option value="receiver">${T("receiver")}</option><option value="sender">${T("sender")}</option></select></label>
+     <label class="field"><span class="lab">${T("protocol")}</span><select id="tProto"><option value="tcp">TCP</option><option value="udp">UDP</option><option value="icmp">ICMP</option></select></label>
+     <label class="field"><span class="lab">${T("port")}</span><input id="tPort" type="number" value="443"></label>
+     <label class="field"><span class="lab">${T("packets")}</span><input id="tPackets" type="number" value="10"></label>
+    </div>
+    <div class="row">
+     <label class="field" id="tTargetWrap"><span class="lab">${T("target")}</span><input id="tTarget" placeholder="203.0.113.9"></label>
+     <label class="field"><span class="lab">${T("timeout")}</span><input id="tTimeout" type="number" value="60"></label>
+     <label class="field"><span class="lab">${T("max_loss")}</span><input id="tLoss" type="number" value="20"></label>
+     <label class="field"><span class="lab">${T("rate")}</span><input id="tRate" type="number" value="3000"></label>
+    </div>
+    <label class="field"><span class="lab">${T("candidate")}</span><textarea id="tIps" placeholder="1.2.3.0/24&#10;8.8.8.8&#10;5.5.5.1-5.5.5.9"></textarea><div class="hint">${T("one_per_line")}</div></label>
+    <div style="display:flex;gap:9px"><button class="btn primary" id="tRun" onclick="testStart()">${T("run_test")}</button>
+      <button class="btn" id="tStop" onclick="testStop()" disabled>${T("stop_test")}</button>
+      <span id="tStatus" style="align-self:center;color:var(--mu);font-size:12.5px"></span></div>
+   </div>
+   <div class="card" id="tResCard" hidden>
+    <h2>${T("results")}</h2>
+    <div class="stat" id="tStat"></div>
+    <div class="progress"><i id="tProg"></i></div>
+    <div id="tResults"></div>
+   </div>`;
+  document.getElementById("tMode").addEventListener("change",syncTestMode);syncTestMode();
+}
+function syncTestMode(){const m=document.getElementById("tMode").value;
+  document.getElementById("tTargetWrap").style.display=m==="sender"?"":"none";}
+async function testStart(){
+  const body={mode:document.getElementById("tMode").value,protocol:document.getElementById("tProto").value,
+    ips:document.getElementById("tIps").value,target:document.getElementById("tTarget").value.trim(),
+    port:parseInt(document.getElementById("tPort").value)||443,packets_per_ip:parseInt(document.getElementById("tPackets").value)||10,
+    timeout_secs:parseInt(document.getElementById("tTimeout").value)||60,max_loss_pct:parseFloat(document.getElementById("tLoss").value)||20,
+    rate_pps:parseInt(document.getElementById("tRate").value)||3000};
+  try{await api("POST","/api/tester/start",body);document.getElementById("tResCard").hidden=false;
+    document.getElementById("tRun").disabled=true;document.getElementById("tStop").disabled=false;
+    if(STATE.testTimer)clearInterval(STATE.testTimer);STATE.testTimer=setInterval(testPoll,1000);testPoll();}
+  catch(e){toast(e.message,"err");}
+}
+async function testStop(){try{await api("POST","/api/tester/stop",{});}catch(e){}}
+function lossCls(p){return p<=5?"loss-ok":(p<=30?"loss-mid":"loss-bad");}
+async function testPoll(){
+  let d;try{d=await api("GET","/api/tester/status");}catch(e){return;}
+  const s=d.state;document.getElementById("tProg").style.width=(s.progress||0)+"%";
+  document.getElementById("tStatus").textContent=s.status==="running"?T("running"):T(s.status==="done"?"done":s.status);
+  document.getElementById("tStat").innerHTML=
+    `<div class="b">${T("sent")}<b class="num">${s.packets||0}</b></div>`+
+    (s.mode==="receiver"?`<div class="b">${T("heard")}<b class="num">${s.heard_ips||0}</b></div><div class="b">${T("passed")}<b class="num" style="color:var(--ok)">${s.passed_ips||0}</b></div>`:"")+
+    `<div class="b">IP<b class="num">${s.total_ips||0}</b></div>`;
+  const res=d.results||[];
+  if(res.length){
+    const rows=res.slice(0,500).map(r=>`<tr><td class="mono">${esc(r.ip)}</td><td class="num">${r.received}/${r.expected}</td><td class="num ${lossCls(r.loss_pct)}">${r.loss_pct}%</td><td>${r.passed?T("pass"):T("fail")}</td></tr>`).join("");
+    const passed=res.filter(r=>r.passed).map(r=>r.ip);
+    document.getElementById("tResults").innerHTML=
+      (passed.length?`<button class="btn primary sm" style="margin-bottom:10px" onclick='applyPassing(${JSON.stringify(passed)})'>${T("add_to_tun")} (${passed.length})</button>`:"")+
+      `<table><thead><tr><th>${T("ip")}</th><th>${T("received")}</th><th>${T("loss")}</th><th>${T("status")}</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }else if(s.status!=="running"){document.getElementById("tResults").innerHTML=`<div class="empty">${T("no_results")}</div>`;}
+  if(s.status!=="running"){clearInterval(STATE.testTimer);STATE.testTimer=null;
+    document.getElementById("tRun").disabled=false;document.getElementById("tStop").disabled=true;
+    if(s.error)toast(s.error,"err");}
+}
+async function applyPassing(ips){
+  await loadInstances();
+  const opts=STATE.instances.map(i=>`<option value="${esc(i.name)}">${esc(i.name)} (${i.role==="server"?T("role_server"):T("role_client")})</option>`).join("");
+  if(!opts){toast(T("pick_tun"),"err");return;}
+  openDlg(`<div class="dh"><b>${T("add_to_tun")}</b><button class="ic x" onclick="closeDlg()">✕</button></div>
+   <div class="db">
+     <label class="field"><span class="lab">${T("instance")}</span><select id="apInst">${opts}</select></label>
+     <label class="field"><span class="lab">${T("which_list")}</span><select id="apWhich"><option value="mine">${T("mine_list")}</option><option value="peer">${T("peer_list")}</option></select></label>
+     <div class="codebox">${ips.map(esc).join("\n")}</div>
+   </div>
+   <div class="df"><button class="btn" onclick="closeDlg()">${T("cancel")}</button>
+     <button class="btn primary" onclick='doApply(${JSON.stringify(ips)})'>${T("apply")}</button></div>`);
+}
+async function doApply(ips){
+  const name=document.getElementById("apInst").value,which=document.getElementById("apWhich").value;
+  try{const d=await api("POST","/api/instances/"+encodeURIComponent(name)+"/spoofips/"+which,{content:ips.join("\n")});
+    toast(T("saved")+" ("+d.count+")","ok");closeDlg();}catch(e){toast(e.message,"err");}
+}
+
+function renderSpeed(v){
+  v.innerHTML=`<div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M4 20a8 8 0 1116 0"/></svg>${T("speed_title")}</h2>
+    <div class="sub">${T("speed_sub")}</div>
+    <div class="row">
+     <label class="field"><span class="lab">${T("target")}</span><input id="spTarget" placeholder="10.66.0.1"></label>
+     <label class="field"><span class="lab">${T("port")}</span><input id="spPort" type="number" value="5201"></label>
+     <label class="field"><span class="lab">${T("duration")}</span><input id="spDur" type="number" value="10"></label>
+     <label class="field"><span class="lab">${T("protocol")}</span><select id="spUdp"><option value="0">TCP</option><option value="1">UDP</option></select></label>
+    </div>
+    <label class="sw" style="margin-bottom:12px"><input type="checkbox" id="spRev"><span class="track"></span><span>${T("reverse")}</span></label>
+    <div style="display:flex;gap:9px"><button class="btn primary" id="spRun" onclick="speedRun()">${T("run_speed")}</button>
+     <span id="spStatus" style="align-self:center;color:var(--mu);font-size:12.5px"></span></div>
+    <div class="stat" id="spStat" style="margin-top:16px"></div>
+   </div>`;
+}
+async function speedRun(){
+  const body={target:document.getElementById("spTarget").value.trim(),port:parseInt(document.getElementById("spPort").value)||5201,
+    duration:parseInt(document.getElementById("spDur").value)||10,udp:document.getElementById("spUdp").value==="1",
+    reverse:document.getElementById("spRev").checked};
+  if(!body.target){toast(T("target"),"err");return;}
+  try{const d=await api("POST","/api/speedtest",body);document.getElementById("spRun").disabled=true;
+    document.getElementById("spStatus").textContent=T("running");speedPoll(d.job_id);}catch(e){toast(e.message,"err");}
+}
+async function speedPoll(id){
+  let d;try{d=await api("GET","/api/speedtest/"+id);}catch(e){document.getElementById("spRun").disabled=false;return;}
+  if(d.state==="running"){setTimeout(()=>speedPoll(id),1000);return;}
+  document.getElementById("spRun").disabled=false;document.getElementById("spStatus").textContent=T("done");
+  if(d.state==="error"){toast(d.error||"error","err");return;}
+  const up=d.mbps_sent!=null?d.mbps_sent.toFixed(1):"—",dn=d.mbps_recv!=null?d.mbps_recv.toFixed(1):"—";
+  document.getElementById("spStat").innerHTML=`<div class="b">${T("upload")}<b class="num">${up} <span style="font-size:12px;color:var(--mu)">Mbit/s</span></b></div>
+    <div class="b">${T("download")}<b class="num">${dn} <span style="font-size:12px;color:var(--mu)">Mbit/s</span></b></div>`;
+}
+
+let logTimer=null;
+async function renderLogs(v){
+  await loadInstances();
+  const opts=STATE.instances.map(i=>`<option value="${esc(i.name)}">${esc(i.name)}</option>`).join("");
+  v.innerHTML=`<div class="card"><h2><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>${T("logs_title")}</h2>
+    <div class="row" style="align-items:end">
+     <label class="field" style="margin:0"><span class="lab">${T("instance")}</span><select id="lgInst">${opts}</select></label>
+     <label class="field" style="margin:0;max-width:120px"><span class="lab">${T("lines")}</span><input id="lgLines" type="number" value="150"></label>
+     <button class="btn" onclick="loadLogs()">${T("refresh")}</button>
+     <label class="sw"><input type="checkbox" id="lgAuto" onchange="toggleAuto()"><span class="track"></span><span>${T("autoref")}</span></label>
+    </div>
+    <pre class="logs" id="lgOut" style="margin-top:14px"></pre></div>`;
+  if(opts)loadLogs();
+}
+async function loadLogs(){const sel=document.getElementById("lgInst");if(!sel||!sel.value)return;
+  const lines=parseInt(document.getElementById("lgLines").value)||150;
+  try{const d=await api("GET","/api/instances/"+encodeURIComponent(sel.value)+"/logs?lines="+lines);
+    const out=document.getElementById("lgOut");out.textContent=d.logs||"";out.scrollTop=out.scrollHeight;}catch(e){}}
+function toggleAuto(){if(document.getElementById("lgAuto").checked){logTimer=setInterval(loadLogs,3000);}else if(logTimer){clearInterval(logTimer);logTimer=null;}}
+
+function appearanceMenu(anchor){
+  closeMenus();
+  const m=document.createElement("div");m.className="menu";m.id="apMenu";
+  const t=localStorage.getItem("ct_theme")||"dark",a=localStorage.getItem("ct_accent")||"azure";
+  const accents=[["azure","#38bdf8"],["violet","#8b7cf6"],["lime","#8bd450"],["ember","#f6702d"]];
+  m.innerHTML=`<h4>Theme</h4><div class="seg">
+     <button data-th="dark" class="${t==="dark"?"on":""}">Dark</button><button data-th="light" class="${t==="light"?"on":""}">Light</button></div>
+    <h4>Accent</h4><div class="dots">${accents.map(([k,c])=>`<button data-ac="${k}" class="${a===k?"on":""}" style="--c:${c}"></button>`).join("")}</div>`;
+  document.body.appendChild(m);
+  const r=anchor.getBoundingClientRect();m.style.top=(r.bottom+6)+"px";
+  if(LANG==="fa")m.style.left=r.left+"px";else m.style.right=(window.innerWidth-r.right)+"px";
+  m.querySelectorAll("[data-th]").forEach(b=>b.onclick=()=>{localStorage.setItem("ct_theme",b.dataset.th);applyTheme();appearanceMenu(anchor);});
+  m.querySelectorAll("[data-ac]").forEach(b=>b.onclick=()=>{localStorage.setItem("ct_accent",b.dataset.ac);applyTheme();appearanceMenu(anchor);});
+}
+function closeMenus(){const m=document.getElementById("apMenu");if(m)m.remove();}
+document.addEventListener("click",e=>{if(!e.target.closest("#apMenu")&&!e.target.closest("#apBtn"))closeMenus();});
+
+document.getElementById("loginBtn").onclick=doLogin;
+document.getElementById("loginPw").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
+document.getElementById("logoutBtn").onclick=doLogout;
+function toggleLang(){LANG=LANG==="fa"?"en":"fa";localStorage.setItem("ct_lang",LANG);applyLang();}
+document.getElementById("langBtn").onclick=toggleLang;
+document.getElementById("loginLang").onclick=toggleLang;
+document.getElementById("loginTheme").onclick=()=>{localStorage.setItem("ct_theme",(localStorage.getItem("ct_theme")||"dark")==="dark"?"light":"dark");applyTheme();};
+document.getElementById("apBtn").onclick=e=>{if(document.getElementById("apMenu"))closeMenus();else appearanceMenu(e.currentTarget);};
+document.getElementById("dock").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(b)setTab(b.dataset.tab);});
 boot();
 </script>
 </body>

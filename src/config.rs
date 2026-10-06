@@ -96,8 +96,19 @@ pub struct Config {
     pub peer_spoofed_ip: Ipv4Addr,
 
     /// Optional pool of spoofed IPs for rotation.  If empty, `spoofed_ip` is
-    /// always used.
+    /// always used.  Entries from `spoofed_ip_file` are merged in at load time.
     pub spoofed_ip_pool: Vec<Ipv4Addr>,
+
+    /// Spoofed source IPs the peer may use, in addition to `peer_spoofed_ip`.
+    /// Packets from any of them are accepted.  Entries from
+    /// `peer_spoofed_ip_file` are merged in at load time.
+    pub peer_spoofed_ip_pool: Vec<Ipv4Addr>,
+
+    /// Rotate the spoofed source IP round-robin on every outgoing packet
+    /// instead of picking one address from the pool at startup.  Spreads the
+    /// traffic so a per-IP rate or volume limit on the path hits each address
+    /// only a fraction as hard.
+    pub spoof_rotation: bool,
 
     /// Transport protocol used for packets sent by this node.
     pub uplink_protocol: TunnelProtocol,
@@ -269,6 +280,14 @@ struct ConfigFile {
     #[serde(default)]
     spoofed_ip_pool: Vec<Ipv4Addr>,
     #[serde(default)]
+    spoofed_ip_file: String,
+    #[serde(default)]
+    peer_spoofed_ip_pool: Vec<Ipv4Addr>,
+    #[serde(default)]
+    peer_spoofed_ip_file: String,
+    #[serde(default = "default_spoof_rotation")]
+    spoof_rotation: bool,
+    #[serde(default)]
     uplink_protocol: Option<TunnelProtocol>,
     #[serde(default)]
     downlink_protocol: Option<TunnelProtocol>,
@@ -336,7 +355,7 @@ struct ConfigFile {
     io_channel_capacity: usize,
     #[serde(default = "default_runtime_worker_threads")]
     runtime_worker_threads: usize,
-    #[serde(default)]
+    #[serde(default = "default_send_threads")]
     send_threads: usize,
     #[serde(default = "default_send_batch")]
     send_batch: usize,
@@ -397,7 +416,12 @@ fn default_multiplex_max_payload() -> usize { 1200 }
 fn default_fec_group_size() -> u8 { 4 }
 fn default_io_channel_capacity() -> usize { 16384 }
 fn default_runtime_worker_threads() -> usize { 0 }
+// One send thread keeps packets in order. Several threads draining one queue
+// let a later packet overtake an earlier one, and the inner TCP reads that
+// reordering as loss.
+fn default_send_threads() -> usize { 1 }
 fn default_send_batch() -> usize { 64 }
+fn default_spoof_rotation() -> bool { true }
 fn default_recv_batch() -> usize { 64 }
 fn default_random_icmp_id() -> bool { false }
 fn default_log_level() -> String { "info".to_string() }
@@ -414,7 +438,8 @@ impl Config {
     pub fn from_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("Cannot read config '{}': {}", path, e))?;
-        Self::from_toml_str(&content)
+        let base = std::path::Path::new(path).parent();
+        Self::from_toml_str_in(&content, base)
             .map_err(|e| anyhow::anyhow!("Invalid config '{}': {}", path, e))
     }
 
@@ -423,7 +448,20 @@ impl Config {
     /// Used both by [`from_file`] and by the web panel to validate an edited
     /// configuration before it is written to disk.
     pub fn from_toml_str(content: &str) -> anyhow::Result<Self> {
+        Self::from_toml_str_in(content, None)
+    }
+
+    /// Like [`from_toml_str`], resolving relative IP-list file paths against
+    /// `base` (the directory the config file lives in).
+    pub fn from_toml_str_in(content: &str, base: Option<&std::path::Path>) -> anyhow::Result<Self> {
         let raw: ConfigFile = toml::from_str(content)?;
+
+        let mut spoofed_ip_pool = raw.spoofed_ip_pool;
+        spoofed_ip_pool.extend(load_ip_file(&raw.spoofed_ip_file, base)?);
+        let mut peer_spoofed_ip_pool = raw.peer_spoofed_ip_pool;
+        peer_spoofed_ip_pool.extend(load_ip_file(&raw.peer_spoofed_ip_file, base)?);
+        dedup_in_order(&mut spoofed_ip_pool);
+        dedup_in_order(&mut peer_spoofed_ip_pool);
 
         let fallback_protocol = raw.protocol.unwrap_or_else(default_tunnel_protocol);
 
@@ -433,7 +471,9 @@ impl Config {
             peer_real_ip: raw.peer_real_ip,
             spoofed_ip: raw.spoofed_ip,
             peer_spoofed_ip: raw.peer_spoofed_ip,
-            spoofed_ip_pool: raw.spoofed_ip_pool,
+            spoofed_ip_pool,
+            peer_spoofed_ip_pool,
+            spoof_rotation: raw.spoof_rotation,
             uplink_protocol: raw.uplink_protocol.unwrap_or(fallback_protocol),
             downlink_protocol: raw.downlink_protocol.unwrap_or(fallback_protocol),
             data_port: raw.data_port,
@@ -591,11 +631,36 @@ impl Config {
         }
     }
 
-    /// Returns true if `ip` is a trusted peer address.
+    /// Returns true if `ip` is a trusted peer address. Includes every address
+    /// in `peer_spoofed_ip_pool`, so a peer rotating its spoofed source IP per
+    /// packet is still accepted — without this the control channel's SYN (from
+    /// the primary peer IP) passes but rotated DATA packets are dropped here.
     pub fn is_peer_allowed(&self, ip: &Ipv4Addr) -> bool {
         *ip == self.peer_real_ip
             || *ip == self.peer_spoofed_ip
+            || self.peer_spoofed_ip_pool.contains(ip)
             || self.allowed_peers.contains(ip)
+    }
+
+    /// The source addresses outgoing packets are spoofed from: the pool, or
+    /// `spoofed_ip` alone when the pool is empty.  With `spoof_rotation` every
+    /// packet takes the next address round-robin; without it one address is
+    /// picked at startup and kept, as before.
+    pub fn spoof_pool(&self) -> SpoofPool {
+        if self.spoof_rotation && self.spoofed_ip_pool.len() > 1 {
+            SpoofPool::rotating(self.spoofed_ip_pool.clone())
+        } else {
+            SpoofPool::fixed(self.pick_spoofed_ip())
+        }
+    }
+
+    /// Every source address the peer may spoof: `peer_spoofed_ip` plus its pool.
+    pub fn peer_spoofed_ips(&self) -> Vec<Ipv4Addr> {
+        let mut ips = Vec::with_capacity(1 + self.peer_spoofed_ip_pool.len());
+        ips.push(self.peer_spoofed_ip);
+        ips.extend(self.peer_spoofed_ip_pool.iter().copied());
+        dedup_in_order(&mut ips);
+        ips
     }
 
     /// Pick a (possibly random) spoofed source IP from the configured pool.
@@ -808,6 +873,77 @@ fn collect_ports_from_proc(
     Ok(())
 }
 
+/// Largest IP list a pool file may expand to.  A rotation pool is walked one
+/// address per packet, so anything past this is a typo (a /8) rather than a list.
+const MAX_POOL_IPS: usize = 1 << 18;
+
+fn load_ip_file(path: &str, base: Option<&std::path::Path>) -> anyhow::Result<Vec<Ipv4Addr>> {
+    if path.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut p = std::path::PathBuf::from(path.trim());
+    if p.is_relative() {
+        if let Some(base) = base {
+            p = base.join(p);
+        }
+    }
+    let text = std::fs::read_to_string(&p)
+        .map_err(|e| anyhow::anyhow!("cannot read IP list {}: {}", p.display(), e))?;
+    let set = crate::iplist::IpRangeSet::parse(&text)
+        .map_err(|e| anyhow::anyhow!("IP list {}: {:#}", p.display(), e))?;
+    set.expand(MAX_POOL_IPS)
+}
+
+fn dedup_in_order(ips: &mut Vec<Ipv4Addr>) {
+    let mut seen = HashSet::with_capacity(ips.len());
+    ips.retain(|ip| seen.insert(*ip));
+}
+
+/// Source addresses for outgoing spoofed packets.  Cheap to clone; clones share
+/// the rotation cursor so every sender walks the same sequence.
+#[derive(Debug, Clone)]
+pub struct SpoofPool {
+    ips: Arc<[Ipv4Addr]>,
+    cursor: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl SpoofPool {
+    pub fn fixed(ip: Ipv4Addr) -> Self {
+        Self::rotating(vec![ip])
+    }
+
+    pub fn rotating(ips: Vec<Ipv4Addr>) -> Self {
+        assert!(!ips.is_empty(), "spoof pool needs at least one address");
+        Self {
+            ips: ips.into(),
+            cursor: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        }
+    }
+
+    /// The source address for the next packet.
+    #[inline]
+    pub fn next(&self) -> Ipv4Addr {
+        if self.ips.len() == 1 {
+            return self.ips[0];
+        }
+        let i = self.cursor.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.ips[i % self.ips.len()]
+    }
+
+    pub fn len(&self) -> usize {
+        self.ips.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ips.is_empty()
+    }
+
+    /// The first address, used where one stable address is needed (logging).
+    pub fn primary(&self) -> Ipv4Addr {
+        self.ips[0]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -866,8 +1002,71 @@ mod tests {
     }
 
     #[test]
+    fn spoof_pool_rotates_per_packet() {
+        let toml = format!("{}\nspoofed_ip_pool = [\"9.9.9.1\", \"9.9.9.2\", \"9.9.9.3\"]\n", MINIMAL);
+        let cfg = Config::from_toml_str(&toml).unwrap();
+        assert!(cfg.spoof_rotation, "rotation is on by default");
+        let pool = cfg.spoof_pool();
+        let seq: Vec<_> = (0..6).map(|_| pool.next().to_string()).collect();
+        assert_eq!(seq, ["9.9.9.1", "9.9.9.2", "9.9.9.3", "9.9.9.1", "9.9.9.2", "9.9.9.3"]);
+        // Clones share the cursor.
+        let other = pool.clone();
+        assert_eq!(other.next().to_string(), "9.9.9.1");
+        assert_eq!(pool.next().to_string(), "9.9.9.2");
+    }
+
+    #[test]
+    fn spoof_rotation_off_keeps_one_address() {
+        let toml = format!("{}\nspoof_rotation = false\nspoofed_ip_pool = [\"9.9.9.1\", \"9.9.9.2\"]\n", MINIMAL);
+        let cfg = Config::from_toml_str(&toml).unwrap();
+        let pool = cfg.spoof_pool();
+        let first = pool.next();
+        assert!((0..10).all(|_| pool.next() == first));
+    }
+
+    #[test]
+    fn ip_files_merge_into_pools() {
+        let dir = std::env::temp_dir().join(format!("ct-iplist-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("mine.txt"), "5.5.5.0/30\n# comment\n").unwrap();
+        std::fs::write(dir.join("peer.txt"), "6.6.6.1-6.6.6.2\n1.2.3.4\n").unwrap();
+        let toml = format!(
+            "{}\nspoofed_ip_file = \"mine.txt\"\npeer_spoofed_ip_file = \"peer.txt\"\n",
+            MINIMAL
+        );
+        let cfg = Config::from_toml_str_in(&toml, Some(&dir)).unwrap();
+        assert_eq!(cfg.spoofed_ip_pool.len(), 4);
+        // peer_spoofed_ip (1.2.3.4) is not listed twice.
+        let peers: Vec<_> = cfg.peer_spoofed_ips().iter().map(|i| i.to_string()).collect();
+        assert_eq!(peers, ["1.2.3.4", "6.6.6.1", "6.6.6.2"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn send_threads_default_to_one() {
+        let cfg = Config::from_toml_str(MINIMAL).unwrap();
+        assert_eq!(cfg.effective_send_threads(), 1);
+    }
+
+    #[test]
     fn same_tun_ips_rejected() {
         let toml = MINIMAL.replace("10.66.0.2", "10.66.0.1");
         assert!(Config::from_toml_str(&toml).is_err());
+    }
+
+    #[test]
+    fn peer_pool_members_are_allowed() {
+        let toml = format!(
+            "{}\npeer_spoofed_ip_pool = [\"3.3.3.3\", \"4.4.4.4\"]\n",
+            MINIMAL
+        );
+        let cfg = Config::from_toml_str(&toml).unwrap();
+        // The primary peer and every pool member must pass the app-level
+        // allow check, so a peer rotating its source IP is not dropped.
+        assert!(cfg.is_peer_allowed(&"1.2.3.4".parse().unwrap())); // peer_spoofed_ip
+        assert!(cfg.is_peer_allowed(&"3.3.3.3".parse().unwrap()));
+        assert!(cfg.is_peer_allowed(&"4.4.4.4".parse().unwrap()));
+        assert!(cfg.is_peer_allowed(&"10.0.0.2".parse().unwrap())); // peer_real_ip
+        assert!(!cfg.is_peer_allowed(&"9.9.9.9".parse().unwrap()));
     }
 }

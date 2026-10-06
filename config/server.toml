@@ -15,12 +15,24 @@ peer_real_ip   = "10.0.0.1"
 # The spoofed source IP the server uses in outgoing replies.
 spoofed_ip     = "1.2.3.4"
 
-# Spoofed IP pool – server can rotate among multiple addresses.
+# Spoofed IP pool.  With spoof_rotation = true (the default) every outgoing
+# packet takes the next address round-robin, so a per-IP rate or volume
+# limit on the path hits each address only a fraction as hard.  With
+# spoof_rotation = false one address is picked at startup and kept.
+# The peer must list every one of these in its peer_spoofed_ip_pool.
 spoofed_ip_pool = ["1.2.3.4", "5.6.7.8"]
+spoof_rotation  = true
+# Optional file with more addresses (one per line; CIDR and a-b ranges allowed).
+# spoofed_ip_file = "/etc/candytunnel/mine.spoof.txt"
 
 # The spoofed source IP the client uses (what we expect to receive as
 # source in incoming packets).
 peer_spoofed_ip = "8.8.4.4"
+
+# Every other address the peer spoofs from (its spoofed_ip_pool).  Packets
+# from these are accepted too.  Same file format as spoofed_ip_file.
+peer_spoofed_ip_pool = ["1.1.1.1", "208.67.222.222"]
+# peer_spoofed_ip_file = "/etc/candytunnel/peer.spoof.txt"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Channel Settings
@@ -159,10 +171,10 @@ runtime_worker_threads = 0
 
 # ── Throughput scaling (raw-socket I/O) ──────────────────────────────────────
 # Number of parallel raw-socket SEND threads (0 = auto: one per core, cap 8).
-# Each thread owns its own socket and transmits with sendmmsg(), so packet
-# building + sending scales across cores instead of one thread / one syscall
-# per packet. Raise this on high-core servers chasing hundreds of Mbit+.
-send_threads = 0
+# Every thread transmits with sendmmsg().  Keep 1 unless the send thread is
+# CPU-bound: several threads draining one queue let packets overtake each
+# other, and the TCP running inside the tunnel reads reordering as loss.
+send_threads = 1
 # Packets coalesced into a single sendmmsg() syscall.
 send_batch = 64
 # Datagrams pulled per recvmmsg() syscall on the receive path.
