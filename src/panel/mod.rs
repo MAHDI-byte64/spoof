@@ -19,6 +19,7 @@
 mod auth;
 mod instances;
 mod iptest;
+mod setup;
 mod speedtest;
 mod sysinfo;
 
@@ -34,7 +35,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use auth::Sessions;
-use iptest::JobStore;
+use crate::tester::Tester;
 
 const SESSION_COOKIE: &str = "ct_session";
 const MAX_HEADER_BYTES: usize = 32 * 1024;
@@ -95,7 +96,7 @@ struct PanelConfig {
 struct PanelState {
     cfg: PanelConfig,
     sessions: Sessions,
-    jobs: JobStore,
+    tester: Tester,
     speed: speedtest::SpeedStore,
 }
 
@@ -203,7 +204,7 @@ pub async fn run_panel(opts: PanelOptions) -> Result<()> {
 
     let state = Arc::new(PanelState {
         sessions: Sessions::new(cfg.session_ttl),
-        jobs: JobStore::new(),
+        tester: Tester::new(),
         speed: speedtest::SpeedStore::new(),
         cfg,
     });
@@ -572,8 +573,19 @@ async fn route(state: &Arc<PanelState>, req: &Request) -> Response {
         ("DELETE", ["api", "instances", name]) => instances::remove(state, name).await,
         ("POST", ["api", "instances", name, "action"]) => instances::action(state, req, name).await,
         ("GET", ["api", "instances", name, "logs"]) => instances::logs(state, req, name).await,
-        ("POST", ["api", "iptest"]) => iptest::start(state, req).await,
-        ("GET", ["api", "iptest", id]) => iptest::status(state, id),
+        ("GET", ["api", "netinfo"]) => setup::netinfo(state).await,
+        ("POST", ["api", "quickadd"]) => setup::quickadd(state, req).await,
+        ("GET", ["api", "instances", name, "code"]) => setup::gen_code(state, name).await,
+        ("POST", ["api", "code", "import"]) => setup::import_code(state, req).await,
+        ("GET", ["api", "instances", name, "spoofips", which]) => {
+            setup::get_spoof_list(state, name, which).await
+        }
+        ("POST", ["api", "instances", name, "spoofips", which]) => {
+            setup::set_spoof_list(state, req, name, which).await
+        }
+        ("POST", ["api", "tester", "start"]) => iptest::start(state, req).await,
+        ("POST", ["api", "tester", "stop"]) => iptest::stop(state),
+        ("GET", ["api", "tester", "status"]) => iptest::status(state),
         ("POST", ["api", "speedtest"]) => speedtest::start(state, req).await,
         ("GET", ["api", "speedtest", id]) => speedtest::status(state, id),
         _ => Response::json(404, json!({ "error": "not found" })),

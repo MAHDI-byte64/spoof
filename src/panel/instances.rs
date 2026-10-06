@@ -30,6 +30,14 @@ pub struct PanelInstance {
     #[serde(default)]
     pub spoofed_ip_pool: Vec<String>,
     #[serde(default)]
+    pub spoofed_ip_file: String,
+    #[serde(default)]
+    pub peer_spoofed_ip_pool: Vec<String>,
+    #[serde(default)]
+    pub peer_spoofed_ip_file: String,
+    #[serde(default = "d_true")]
+    pub spoof_rotation: bool,
+    #[serde(default)]
     pub allowed_peers: Vec<String>,
 
     #[serde(default = "d_proto")]
@@ -126,7 +134,7 @@ pub struct PanelInstance {
     pub io_channel_capacity: usize,
     #[serde(default)]
     pub runtime_worker_threads: usize,
-    #[serde(default)]
+    #[serde(default = "d_send_threads")]
     pub send_threads: usize,
     #[serde(default = "d_send_batch")]
     pub send_batch: usize,
@@ -135,6 +143,14 @@ pub struct PanelInstance {
 
     #[serde(default = "d_log")]
     pub log_level: String,
+}
+
+impl PanelInstance {
+    /// A fully-defaulted instance (every field has a serde default), used as the
+    /// starting point for the quick-add form and connection-code import.
+    pub fn default_client() -> Self {
+        serde_json::from_str("{}").expect("all PanelInstance fields carry serde defaults")
+    }
 }
 
 fn d_role() -> String { "client".into() }
@@ -164,6 +180,8 @@ fn d_perf() -> String { "throughput".into() }
 fn d_tunnels() -> usize { 4 }
 fn d_chan() -> usize { 8192 }
 fn d_iochan() -> usize { 16384 }
+// Matches the core default: one sender keeps packets in order.
+fn d_send_threads() -> usize { 1 }
 fn d_send_batch() -> usize { 64 }
 fn d_recv_batch() -> usize { 64 }
 fn d_log() -> String { "info".into() }

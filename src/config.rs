@@ -631,10 +631,14 @@ impl Config {
         }
     }
 
-    /// Returns true if `ip` is a trusted peer address.
+    /// Returns true if `ip` is a trusted peer address. Includes every address
+    /// in `peer_spoofed_ip_pool`, so a peer rotating its spoofed source IP per
+    /// packet is still accepted — without this the control channel's SYN (from
+    /// the primary peer IP) passes but rotated DATA packets are dropped here.
     pub fn is_peer_allowed(&self, ip: &Ipv4Addr) -> bool {
         *ip == self.peer_real_ip
             || *ip == self.peer_spoofed_ip
+            || self.peer_spoofed_ip_pool.contains(ip)
             || self.allowed_peers.contains(ip)
     }
 
@@ -1048,5 +1052,21 @@ mod tests {
     fn same_tun_ips_rejected() {
         let toml = MINIMAL.replace("10.66.0.2", "10.66.0.1");
         assert!(Config::from_toml_str(&toml).is_err());
+    }
+
+    #[test]
+    fn peer_pool_members_are_allowed() {
+        let toml = format!(
+            "{}\npeer_spoofed_ip_pool = [\"3.3.3.3\", \"4.4.4.4\"]\n",
+            MINIMAL
+        );
+        let cfg = Config::from_toml_str(&toml).unwrap();
+        // The primary peer and every pool member must pass the app-level
+        // allow check, so a peer rotating its source IP is not dropped.
+        assert!(cfg.is_peer_allowed(&"1.2.3.4".parse().unwrap())); // peer_spoofed_ip
+        assert!(cfg.is_peer_allowed(&"3.3.3.3".parse().unwrap()));
+        assert!(cfg.is_peer_allowed(&"4.4.4.4".parse().unwrap()));
+        assert!(cfg.is_peer_allowed(&"10.0.0.2".parse().unwrap())); // peer_real_ip
+        assert!(!cfg.is_peer_allowed(&"9.9.9.9".parse().unwrap()));
     }
 }

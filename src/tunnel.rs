@@ -408,18 +408,30 @@ impl TunnelManager {
     /// Wait until the tunnel with `id` is in the Established state (or the
     /// supplied deadline elapses).  Uses `Notify` – no polling.
     pub async fn wait_established(&self, id: u32, timeout: Duration) -> bool {
-        // If already established, return immediately.
-        if self.is_established(id).await { return true; }
-
-        // Retrieve the notifier registered during open_tunnel.
+        // Retrieve the notifier registered during open_tunnel. If it is gone the
+        // tunnel is either unknown or already established (the notifier is
+        // removed on success), so the state check settles it.
         let notifier = {
             self.0.established_notifiers.get(&id).map(|n| n.clone())
         };
-        let Some(notifier) = notifier else { return false; };
+        let Some(notifier) = notifier else {
+            return self.is_established(id).await;
+        };
+
+        // Register the listener *before* checking the state. A SYN-ACK that
+        // arrives in the window between the check and the wait fires the event
+        // while this listener is already attached, so the wakeup cannot be
+        // lost — the bug the old check-then-listen order had, which turned a
+        // well-timed SYN-ACK into a full retransmit slice of delay.
+        let listener = notifier.listen();
+        if self.is_established(id).await {
+            self.0.established_notifiers.remove(&id);
+            return true;
+        }
 
         let established = future::race(
             async {
-                notifier.listen().await;
+                listener.await;
                 true
             },
             async {
