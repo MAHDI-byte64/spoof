@@ -2,7 +2,7 @@ name: Build and Release
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -33,6 +33,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Test
+        run: cargo test --release
 
       - name: Build (release)
         run: cargo build --release --bins

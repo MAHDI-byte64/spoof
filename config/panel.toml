@@ -1,0 +1,37 @@
+# CandyTunnel – Web Management Panel configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# The panel is an embedded HTTP server (no external web framework) that serves a
+# bilingual (Persian/English) admin UI and a small JSON API for managing tunnel
+# instances, tailing logs, and running the spoofed-IP tester.
+#
+# Start it with:
+#     candy-tunnel panel --config /etc/candytunnel/panel.toml
+#
+# Set the login password (writes password_hash/password_salt below):
+#     candy-tunnel panel --config /etc/candytunnel/panel.toml --set-password
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Address the panel listens on. Keep it on loopback and reach it over an SSH
+# tunnel (ssh -L 8088:127.0.0.1:8088 user@server) unless it sits behind a TLS
+# reverse proxy. Binding to a public address is logged as a warning.
+bind = "127.0.0.1:8088"
+
+# Session lifetime in seconds (sliding; a valid request extends it).
+session_ttl_secs = 3600
+
+# Where instance TOML files live (same directory candy-manager.sh uses).
+config_dir = "/etc/candytunnel"
+
+# Path to the candy-tunnel binary the panel drives for the IP tester and that
+# the generated systemd unit launches.
+bin_path = "/opt/candytunnel/candy-tunnel"
+
+# systemd service prefix: instances are controlled as <prefix>@<name>.service.
+service_prefix = "candytunnel"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Credentials — DO NOT edit by hand. Run `--set-password` to populate these.
+# The login password is stored only as a salted SHA-256 hash.
+# ─────────────────────────────────────────────────────────────────────────────
+# password_salt = ""
+# password_hash = ""

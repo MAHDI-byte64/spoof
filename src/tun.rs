@@ -7,7 +7,7 @@ use std::ffi::CStr;
 use std::io;
 use std::mem;
 use std::net::Ipv4Addr;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::RawFd;
 use std::ptr;
 
 use anyhow::{bail, Context, Result};
@@ -24,25 +24,6 @@ const IFF_NO_PI: libc::c_short = 0x1000;
 
 #[cfg(target_os = "linux")]
 const TUNSETIFF: libc::c_ulong = 0x400454ca;
-
-#[cfg(target_os = "linux")]
-struct TunFd {
-    fd: RawFd,
-}
-
-#[cfg(target_os = "linux")]
-impl AsRawFd for TunFd {
-    fn as_raw_fd(&self) -> RawFd {
-        self.fd
-    }
-}
-
-#[cfg(target_os = "linux")]
-impl Drop for TunFd {
-    fn drop(&mut self) {
-        unsafe { libc::close(self.fd) };
-    }
-}
 
 /// Handle for an async TUN device.
 ///
@@ -251,8 +232,6 @@ fn attach_tun(fd: RawFd, name: &str) -> Result<String> {
         .into_owned();
     Ok(if_name)
 }
-
-#[cfg(target_os = "linux")]
 
 #[cfg(target_os = "linux")]
 fn configure_interface(

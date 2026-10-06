@@ -48,6 +48,10 @@ struct Args {
     /// Concurrent workers for check mode.
     #[arg(long, default_value = "64")]
     check_workers: usize,
+
+    /// SYN probes fired per candidate IP in check mode (fastest reply wins).
+    #[arg(long, default_value = "2")]
+    check_probes: usize,
 }
 
 fn main() -> Result<()> {
@@ -84,6 +88,7 @@ async fn async_main(cfg: Arc<Config>, args: Args) -> Result<()> {
             out_path: args.check_out,
             timeout: Duration::from_millis(args.check_timeout_ms),
             workers: args.check_workers,
+            probes: args.check_probes,
         };
         return run_spoof_check(cfg, opts).await;
     }

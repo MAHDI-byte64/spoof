@@ -157,6 +157,17 @@ io_channel_capacity = 16384
 # Tokio runtime worker threads (0 = auto).
 runtime_worker_threads = 0
 
+# ── Throughput scaling (raw-socket I/O) ──────────────────────────────────────
+# Number of parallel raw-socket SEND threads (0 = auto: one per core, cap 8).
+# Each thread owns its own socket and transmits with sendmmsg(), so packet
+# building + sending scales across cores instead of one thread / one syscall
+# per packet. Raise this on high-core servers chasing hundreds of Mbit+.
+send_threads = 0
+# Packets coalesced into a single sendmmsg() syscall.
+send_batch = 64
+# Datagrams pulled per recvmmsg() syscall on the receive path.
+recv_batch = 64
+
 # Client-side port filter is ignored on the server, but the fields are required.
 forward_ports = [8080, 8443]
 forward_port = 0
