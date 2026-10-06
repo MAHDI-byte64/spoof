@@ -221,6 +221,8 @@ theme for managing everything from the browser:
   files and `candytunnel@<name>.service` units as the manager script
 - 🎯 **IP Tester** — launch a spoofed-IP latency sweep and view **ranked**,
   fastest-first results right in the browser
+- 🚀 **Speed Test** — measure real end-to-end tunnel throughput with `iperf3`
+  (upload/download, TCP/UDP) straight from the dashboard
 - 📜 **Logs** — live `journalctl` tail per instance
 
 ### Setup
@@ -537,7 +539,16 @@ raw sockets. For bulk speed:
   collapse regardless — where evasion isn't strictly required, no-spoof mode
   avoids that.
 - Always measure the real figure with **`iperf3` through the tunnel** — CPU, RTT
-  and loss dominate the result.
+  and loss dominate the result. The [web panel](#-web-management-panel) has a
+  built-in speed test that does exactly this (run `iperf3 -s` on the far end,
+  target its TUN IP).
+
+> **Note on GSO:** generic segmentation offload (`UDP_SEGMENT`) is intentionally
+> not used — it requires a kernel-managed UDP socket (incompatible with the
+> `IP_HDRINCL` raw sockets that make source-IP spoofing possible) and fixed-size
+> segments (incompatible with the tunnel's variable-length mux frames).
+> `sendmmsg`/`recvmmsg` batching is the correct equivalent for this design and
+> is already in place.
 
 ### Internal optimisations
 

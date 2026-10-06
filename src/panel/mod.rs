@@ -19,6 +19,7 @@
 mod auth;
 mod instances;
 mod iptest;
+mod speedtest;
 mod sysinfo;
 
 use std::collections::HashMap;
@@ -95,6 +96,7 @@ struct PanelState {
     cfg: PanelConfig,
     sessions: Sessions,
     jobs: JobStore,
+    speed: speedtest::SpeedStore,
 }
 
 // ── Entry points ─────────────────────────────────────────────────────────────
@@ -202,6 +204,7 @@ pub async fn run_panel(opts: PanelOptions) -> Result<()> {
     let state = Arc::new(PanelState {
         sessions: Sessions::new(cfg.session_ttl),
         jobs: JobStore::new(),
+        speed: speedtest::SpeedStore::new(),
         cfg,
     });
 
@@ -565,6 +568,8 @@ async fn route(state: &Arc<PanelState>, req: &Request) -> Response {
         ("GET", ["api", "instances", name, "logs"]) => instances::logs(state, req, name).await,
         ("POST", ["api", "iptest"]) => iptest::start(state, req).await,
         ("GET", ["api", "iptest", id]) => iptest::status(state, id),
+        ("POST", ["api", "speedtest"]) => speedtest::start(state, req).await,
+        ("GET", ["api", "speedtest", id]) => speedtest::status(state, id),
         _ => Response::json(404, json!({ "error": "not found" })),
     }
 }

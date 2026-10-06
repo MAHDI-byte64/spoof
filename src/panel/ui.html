@@ -169,6 +169,7 @@
       <button data-tab="dash" class="active" data-i18n="tab_dash">Dashboard</button>
       <button data-tab="inst" data-i18n="tab_inst">Instances</button>
       <button data-tab="iptest" data-i18n="tab_iptest">IP Tester</button>
+      <button data-tab="speed" data-i18n="tab_speed">Speed Test</button>
       <button data-tab="logs" data-i18n="tab_logs">Logs</button>
     </nav>
 
@@ -242,6 +243,30 @@
       </div>
     </section>
 
+    <!-- Speed test -->
+    <section id="tab-speed" class="hidden">
+      <div class="card">
+        <h2>🚀 <span data-i18n="tab_speed">Speed Test</span></h2>
+        <div class="sub" data-i18n="speed_sub">Measure real end-to-end tunnel throughput with iperf3. Run <code>iperf3 -s</code> on the other end, then point the target at its TUN IP so traffic flows through the tunnel.</div>
+        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
+          <label class="field"><span class="lab" data-i18n="instance">Instance</span><select id="s_inst"></select></label>
+          <label class="field"><span class="lab" data-i18n="target">Target (peer TUN IP)</span><input id="s_target" placeholder="10.66.0.1"></label>
+          <label class="field"><span class="lab" data-i18n="port">Port</span><input id="s_port" type="number" value="5201"></label>
+          <label class="field"><span class="lab" data-i18n="duration_s">Duration (s)</span><input id="s_dur" type="number" value="10"></label>
+          <label class="field"><span class="lab" data-i18n="protocol">Protocol</span><select id="s_proto"><option value="tcp">TCP</option><option value="udp">UDP</option></select></label>
+        </div>
+        <label class="switch" style="margin-top:6px"><input type="checkbox" id="s_rev"><span class="track"></span><span data-i18n="reverse_dl">Reverse (measure download)</span></label>
+        <div class="rowbtns" style="margin-top:8px">
+          <button class="btn" id="runSpeed" data-i18n="run_speed">Run speed test</button>
+          <span id="speedStatus" style="align-self:center;color:var(--dim);font-size:13px"></span>
+        </div>
+      </div>
+      <div class="card hidden" id="speedResultsCard">
+        <h2>📈 <span data-i18n="results">Results</span></h2>
+        <div class="grid cols" id="speedResults"></div>
+      </div>
+    </section>
+
     <!-- Logs -->
     <section id="tab-logs" class="hidden">
       <div class="card">
@@ -265,7 +290,10 @@
 // ───────────────────────── i18n ─────────────────────────
 const I18N = {
   en:{login_sub:"Web Management Panel",password:"Password",sign_in:"Sign in",logout:"Logout",
-    tab_dash:"Dashboard",tab_inst:"Instances",tab_iptest:"IP Tester",tab_logs:"Logs",
+    tab_dash:"Dashboard",tab_inst:"Instances",tab_iptest:"IP Tester",tab_speed:"Speed Test",tab_logs:"Logs",
+    speed_sub:"Measure real end-to-end tunnel throughput with iperf3. Run `iperf3 -s` on the other end, then point the target at its TUN IP so traffic flows through the tunnel.",
+    target:"Target (peer TUN IP)",port:"Port",duration_s:"Duration (s)",protocol:"Protocol",reverse_dl:"Reverse (measure download)",
+    run_speed:"Run speed test",upload:"Upload",download:"Download",mbps:"Mbit/s",
     system:"System",system_sub:"Host resources detected by CandyTunnel.",
     tunnels_overview:"Instances overview",inst_sub:"Create, configure and control tunnel instances.",
     new_instance:"New",edit_instance:"Edit instance",inst_name:"Instance name",save:"Save",cancel:"Cancel",close:"Close",
@@ -285,7 +313,10 @@ const I18N = {
     g_sec:"Security",g_dpi:"DPI Obfuscation",g_tun:"TUN & Forwarding",g_perf:"Performance",g_log:"Logging",
     need_name:"Instance name required",pick_instance:"Pick an instance first",need_ips:"Enter at least one IP"},
   fa:{login_sub:"پنل مدیریت تحت وب",password:"رمز عبور",sign_in:"ورود",logout:"خروج",
-    tab_dash:"داشبورد",tab_inst:"نمونه‌ها",tab_iptest:"تستر آی‌پی",tab_logs:"گزارش‌ها",
+    tab_dash:"داشبورد",tab_inst:"نمونه‌ها",tab_iptest:"تستر آی‌پی",tab_speed:"تست سرعت",tab_logs:"گزارش‌ها",
+    speed_sub:"سرعت واقعی سرتاسری تانل را با iperf3 بسنجید. در سمت مقابل ‎iperf3 -s را اجرا کنید، سپس هدف را روی IP تانِ آن بگذارید تا ترافیک از داخل تانل عبور کند.",
+    target:"هدف (IP تانِ مقابل)",port:"پورت",duration_s:"مدت (ثانیه)",protocol:"پروتکل",reverse_dl:"معکوس (سنجش دانلود)",
+    run_speed:"اجرای تست سرعت",upload:"آپلود",download:"دانلود",mbps:"مگابیت/ث",
     system:"سیستم",system_sub:"منابع سرور که CandyTunnel شناسایی کرده است.",
     tunnels_overview:"نمای کلی نمونه‌ها",inst_sub:"ساخت، پیکربندی و کنترل نمونه‌های تانل.",
     new_instance:"جدید",edit_instance:"ویرایش نمونه",inst_name:"نام نمونه",save:"ذخیره",cancel:"انصراف",close:"بستن",
@@ -359,13 +390,14 @@ let CURRENT="dash";
 function gotoTab(tab){
   CURRENT=tab;
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
-  ["dash","inst","iptest","logs"].forEach(x=>document.getElementById("tab-"+x).classList.toggle("hidden",x!==tab));
+  ["dash","inst","iptest","speed","logs"].forEach(x=>document.getElementById("tab-"+x).classList.toggle("hidden",x!==tab));
   refreshActive();
 }
 function refreshActive(){
   if(CURRENT==="dash") loadDashboard();
   else if(CURRENT==="inst") loadInstances();
   else if(CURRENT==="iptest") loadInstancePickers();
+  else if(CURRENT==="speed") loadInstancePickers();
   else if(CURRENT==="logs") loadInstancePickers();
 }
 
@@ -578,12 +610,20 @@ async function loadInstancePickers(){
   try{
     const d=await api("GET","/api/instances");
     const list=d.instances||[];
-    ["t_inst","l_inst"].forEach(id=>{
+    ["t_inst","l_inst","s_inst"].forEach(id=>{
       const sel=document.getElementById(id); if(!sel) return;
       const cur=sel.value;
       sel.innerHTML=list.map(i=>`<option value="${esc(i.name)}">${esc(i.name)} (${esc(i.role)})</option>`).join("");
       if(cur) sel.value=cur;
     });
+  }catch(e){}
+}
+// Prefill the speed-test target with the selected instance's peer TUN IP.
+async function prefillSpeedTarget(){
+  const name=document.getElementById("s_inst").value; if(!name) return;
+  try{
+    const d=await api("GET","/api/instances/"+encodeURIComponent(name));
+    if(d.config && d.config.tun_peer_ip) document.getElementById("s_target").value=d.config.tun_peer_ip;
   }catch(e){}
 }
 
@@ -638,6 +678,48 @@ function renderTestResults(s){
   host.innerHTML=`<table><thead><tr><th>${t("rank")}</th><th>IP</th><th>${t("latency")}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+// ───────────────────────── speed test ─────────────────────────
+let SPEED_POLL=null;
+function speedClass(m){ return m>=200?"lat-good":m>=50?"lat-mid":"lat-bad"; }
+async function runSpeed(){
+  const target=document.getElementById("s_target").value.trim();
+  if(!target){ toast(t("target"),"err"); return; }
+  const port=parseInt(document.getElementById("s_port").value||"5201",10);
+  const duration=parseInt(document.getElementById("s_dur").value||"10",10);
+  const udp=document.getElementById("s_proto").value==="udp";
+  const reverse=document.getElementById("s_rev").checked;
+  const btn=document.getElementById("runSpeed"); btn.disabled=true;
+  document.getElementById("speedStatus").innerHTML=`<span class="spin"></span> ${t("running")}`;
+  try{
+    const r=await api("POST","/api/speedtest",{target,port,duration,udp,reverse});
+    pollSpeed(r.job_id);
+  }catch(e){ toast(esc(e.message),"err"); btn.disabled=false; document.getElementById("speedStatus").textContent=""; }
+}
+function pollSpeed(id){
+  clearInterval(SPEED_POLL);
+  SPEED_POLL=setInterval(async()=>{
+    try{
+      const s=await api("GET","/api/speedtest/"+id);
+      if(s.state==="running"){ document.getElementById("speedStatus").innerHTML=`<span class="spin"></span> ${t("running")} · ${s.elapsed_secs}s`; return; }
+      clearInterval(SPEED_POLL);
+      document.getElementById("runSpeed").disabled=false;
+      if(s.state==="error"){ document.getElementById("speedStatus").textContent=""; toast(esc(s.error||"error"),"err"); return; }
+      document.getElementById("speedStatus").textContent=`${t("done")} · ${s.elapsed_secs}s · ${s.protocol.toUpperCase()}`;
+      renderSpeed(s);
+    }catch(e){ clearInterval(SPEED_POLL); document.getElementById("runSpeed").disabled=false; }
+  },1000);
+}
+function renderSpeed(s){
+  document.getElementById("speedResultsCard").classList.remove("hidden");
+  const tile=(k,v)=>{
+    const has=(v!==null&&v!==undefined);
+    const val=has?v.toFixed(1):"—";
+    const cls=has?speedClass(v):"";
+    return `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${val} <small>${t("mbps")}</small></div></div>`;
+  };
+  document.getElementById("speedResults").innerHTML = tile(t("upload"),s.mbps_sent)+tile(t("download"),s.mbps_recv);
+}
+
 // ───────────────────────── logs ─────────────────────────
 let LOG_POLL=null;
 async function loadLogs(){
@@ -672,6 +754,8 @@ function wire(){
   document.getElementById("cancelInst").onclick=()=>document.getElementById("editCard").classList.add("hidden");
   document.getElementById("closeEdit").onclick=()=>document.getElementById("editCard").classList.add("hidden");
   document.getElementById("runTest").onclick=runTest;
+  document.getElementById("runSpeed").onclick=runSpeed;
+  document.getElementById("s_inst").onchange=prefillSpeedTarget;
   document.getElementById("loadLogs").onclick=loadLogs;
   document.getElementById("l_auto").onchange=toggleAutoLogs;
   META=true; // enable form rendering
