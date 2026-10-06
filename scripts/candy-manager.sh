@@ -45,8 +45,8 @@ INSTALL_DIR="/opt/candytunnel"
 CONFIG_DIR="/etc/candytunnel"
 LOG_DIR="/var/log/candytunnel"
 BIN_PATH="${INSTALL_DIR}/candy-tunnel"
-REPO_OWNER="AmiRCandy"
-REPO_NAME="CandyTunnel"
+REPO_OWNER="MAHDI-byte64"
+REPO_NAME="spoof"
 GITHUB_API="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
 SYSTEMD_DIR="/etc/systemd/system"
 SERVICE_PREFIX="candytunnel"
@@ -729,7 +729,7 @@ _ensure_template_service() {
   cat > "$template" << 'UNIT'
 [Unit]
 Description=CandyTunnel instance %i
-Documentation=https://github.com/AmiRCandy/CandyTunnel
+Documentation=https://github.com/MAHDI-byte64/spoof
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=60
@@ -1070,7 +1070,7 @@ _create_panel_service() {
   cat > "$svc" << UNIT
 [Unit]
 Description=CandyTunnel Web Panel
-Documentation=https://github.com/AmiRCandy/CandyTunnel
+Documentation=https://github.com/MAHDI-byte64/spoof
 After=network-online.target
 Wants=network-online.target
 
