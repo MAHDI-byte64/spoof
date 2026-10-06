@@ -478,12 +478,18 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 }
 
 async fn write_response(stream: &mut TcpStream, resp: &Response) -> Result<()> {
+    // The whole UI is self-contained inline HTML/CSS/JS with no external
+    // resources, so a strict CSP (only inline, same-origin XHR) blocks any
+    // injected external script/exfiltration while leaving the page working.
     let mut head = format!(
         "HTTP/1.1 {} {}\r\n\
          Content-Type: {}\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\
          X-Content-Type-Options: nosniff\r\n\
+         X-Frame-Options: DENY\r\n\
+         Referrer-Policy: no-referrer\r\n\
+         Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\r\n\
          Cache-Control: no-store\r\n",
         resp.status,
         Response::status_text(resp.status),
@@ -632,4 +638,35 @@ pub(super) fn valid_instance_name(name: &str) -> bool {
         && name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn instance_names_are_validated() {
+        assert!(valid_instance_name("candy0"));
+        assert!(valid_instance_name("my-server_1"));
+        assert!(!valid_instance_name(""));
+        assert!(!valid_instance_name("../etc/passwd"));
+        assert!(!valid_instance_name("has space"));
+        assert!(!valid_instance_name("a/b"));
+        assert!(!valid_instance_name(&"x".repeat(33)));
+    }
+
+    #[test]
+    fn url_decode_and_query_parsing() {
+        assert_eq!(url_decode("a%20b"), "a b");
+        assert_eq!(url_decode("x+y"), "x y");
+        let (path, q) = parse_target("/api/logs?lines=50&x=1");
+        assert_eq!(path, "/api/logs");
+        assert_eq!(q.get("lines").map(|s| s.as_str()), Some("50"));
+    }
+
+    #[test]
+    fn find_subslice_locates_header_terminator() {
+        assert_eq!(find_subslice(b"abc\r\n\r\ndef", b"\r\n\r\n"), Some(3));
+        assert_eq!(find_subslice(b"no terminator", b"\r\n\r\n"), None);
+    }
 }

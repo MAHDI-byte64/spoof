@@ -430,3 +430,51 @@ async fn ensure_template(state: &Arc<PanelState>) -> std::io::Result<()> {
 pub fn _to_value(inst: &PanelInstance) -> Value {
     serde_json::to_value(inst).unwrap_or(Value::Null)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A fully-defaulted PanelInstance, once the required addressing fields are
+    /// filled, must render to TOML that the real Config schema accepts.
+    #[test]
+    fn panel_instance_renders_valid_config() {
+        let json = serde_json::json!({
+            "role": "client",
+            "real_ip": "10.0.0.2",
+            "peer_real_ip": "203.0.113.9",
+            "spoofed_ip": "8.8.4.4",
+            "peer_spoofed_ip": "1.2.3.4",
+            "data_port": 51820,
+            "icmp_id": 17185,
+            "pre_shared_key": "supersecretkey1234567890abcd",
+            "interface": "eth0",
+            "tun_ip": "10.66.0.2",
+            "tun_peer_ip": "10.66.0.1",
+            "send_threads": 4,
+            "send_batch": 128,
+            "recv_batch": 96
+        });
+        let inst: PanelInstance = serde_json::from_value(json).unwrap();
+        let toml_text = toml::to_string_pretty(&inst).unwrap();
+        let cfg = Config::from_toml_str(&toml_text).expect("rendered config should validate");
+        assert_eq!(cfg.data_port, 51820);
+        assert_eq!(cfg.send_threads, 4);
+        assert_eq!(cfg.effective_send_batch(), 128);
+    }
+
+    /// Rejecting an invalid edit (identical TUN IPs) before it is written.
+    #[test]
+    fn invalid_panel_instance_is_rejected() {
+        let json = serde_json::json!({
+            "role": "client",
+            "real_ip": "10.0.0.2", "peer_real_ip": "203.0.113.9",
+            "spoofed_ip": "8.8.4.4", "peer_spoofed_ip": "1.2.3.4",
+            "data_port": 51820, "icmp_id": 1, "pre_shared_key": "k",
+            "interface": "eth0", "tun_ip": "10.66.0.1", "tun_peer_ip": "10.66.0.1"
+        });
+        let inst: PanelInstance = serde_json::from_value(json).unwrap();
+        let toml_text = toml::to_string_pretty(&inst).unwrap();
+        assert!(Config::from_toml_str(&toml_text).is_err());
+    }
+}

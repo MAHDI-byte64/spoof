@@ -170,3 +170,19 @@ pub fn status(state: &Arc<PanelState>, id: &str) -> Response {
     }
     Response::json(200, resp)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::valid_target;
+
+    #[test]
+    fn targets_are_validated() {
+        assert!(valid_target("10.66.0.1"));
+        assert!(valid_target("tunnel.example.com"));
+        assert!(valid_target("fe80::1"));
+        assert!(!valid_target(""));
+        assert!(!valid_target("1.2.3.4; rm -rf /"));
+        assert!(!valid_target("has space"));
+        assert!(!valid_target("$(whoami)"));
+    }
+}
