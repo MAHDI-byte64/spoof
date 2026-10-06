@@ -22,4 +22,5 @@ pub mod port_forward;
 pub mod tuning;
 pub mod logging;
 pub mod check;
+pub mod tester;
 pub mod panel;

@@ -487,7 +487,7 @@ fn set_sock_buf(fd: RawFd) {
     }
 }
 
-fn create_raw_send_socket() -> Result<RawFd> {
+pub(crate) fn create_raw_send_socket() -> Result<RawFd> {
     let fd = unsafe { libc::socket(libc::AF_INET, libc::SOCK_RAW, libc::IPPROTO_RAW) };
     if fd < 0 {
         return Err(std::io::Error::last_os_error())
@@ -508,7 +508,7 @@ fn create_raw_send_socket() -> Result<RawFd> {
     Ok(fd)
 }
 
-fn create_raw_recv_socket(proto: libc::c_int) -> Result<RawFd> {
+pub(crate) fn create_raw_recv_socket(proto: libc::c_int) -> Result<RawFd> {
     let fd = unsafe { libc::socket(libc::AF_INET, libc::SOCK_RAW, proto) };
     if fd < 0 {
         return Err(std::io::Error::last_os_error())
@@ -564,7 +564,7 @@ fn build_raw(out: OutPacket) -> (Vec<u8>, Ipv4Addr) {
     }
 }
 
-fn dst_sockaddr(dst: Ipv4Addr) -> libc::sockaddr_in {
+pub(crate) fn dst_sockaddr(dst: Ipv4Addr) -> libc::sockaddr_in {
     let mut addr: libc::sockaddr_in = unsafe { std::mem::zeroed() };
     addr.sin_family = libc::AF_INET as libc::sa_family_t;
     addr.sin_port = 0;
@@ -765,7 +765,7 @@ fn encrypt_out_packet(pkt: OutPacket, cipher: &XorCipher) -> OutPacket {
 
 /// Single-packet transmit with a prebuilt destination address (the batch
 /// fast-path for when only one packet is queued).
-fn raw_sendto_sa(fd: RawFd, data: &[u8], addr: &libc::sockaddr_in) -> Result<()> {
+pub(crate) fn raw_sendto_sa(fd: RawFd, data: &[u8], addr: &libc::sockaddr_in) -> Result<()> {
     loop {
         let n = unsafe {
             libc::sendto(
