@@ -213,6 +213,18 @@ pub struct Config {
     /// Tokio runtime worker threads (0 = auto).
     pub runtime_worker_threads: usize,
 
+    /// Number of parallel raw-socket send threads (0 = auto: one per core,
+    /// capped at 8). Each thread owns its own raw socket and transmits with
+    /// `sendmmsg`, so outbound packet building/sending scales across cores
+    /// instead of funnelling through a single thread.
+    pub send_threads: usize,
+
+    /// Max packets coalesced into a single `sendmmsg` syscall.
+    pub send_batch: usize,
+
+    /// Max datagrams pulled per `recvmmsg` syscall on the receive path.
+    pub recv_batch: usize,
+
     /// Client-side port filter (TCP/UDP). When set, overrides `forward_port`.
     pub forward_ports: Vec<u16>,
 
@@ -325,6 +337,12 @@ struct ConfigFile {
     #[serde(default = "default_runtime_worker_threads")]
     runtime_worker_threads: usize,
     #[serde(default)]
+    send_threads: usize,
+    #[serde(default = "default_send_batch")]
+    send_batch: usize,
+    #[serde(default = "default_recv_batch")]
+    recv_batch: usize,
+    #[serde(default)]
     forward_ports: Vec<u16>,
     #[serde(default = "default_forward_port")]
     forward_port: u16,
@@ -379,6 +397,8 @@ fn default_multiplex_max_payload() -> usize { 1200 }
 fn default_fec_group_size() -> u8 { 4 }
 fn default_io_channel_capacity() -> usize { 16384 }
 fn default_runtime_worker_threads() -> usize { 0 }
+fn default_send_batch() -> usize { 64 }
+fn default_recv_batch() -> usize { 64 }
 fn default_random_icmp_id() -> bool { false }
 fn default_log_level() -> String { "info".to_string() }
 fn default_enable_xor() -> bool { false }
@@ -448,6 +468,9 @@ impl Config {
             channel_capacity: raw.channel_capacity,
             io_channel_capacity: raw.io_channel_capacity,
             runtime_worker_threads: raw.runtime_worker_threads,
+            send_threads: raw.send_threads,
+            send_batch: raw.send_batch,
+            recv_batch: raw.recv_batch,
             forward_ports: raw.forward_ports,
             forward_port: raw.forward_port,
             shuffle_data_port: raw.shuffle_data_port,
@@ -693,6 +716,28 @@ impl Config {
         } else {
             self.icmp_id
         }
+    }
+
+    /// Number of raw-socket send threads to spawn (resolves the `0 = auto`
+    /// case to one per core, capped at 8).
+    pub fn effective_send_threads(&self) -> usize {
+        if self.send_threads > 0 {
+            return self.send_threads.min(32);
+        }
+        std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .clamp(1, 8)
+    }
+
+    /// Packets per `sendmmsg` syscall (at least 1).
+    pub fn effective_send_batch(&self) -> usize {
+        self.send_batch.clamp(1, 1024)
+    }
+
+    /// Datagrams per `recvmmsg` syscall (at least 1).
+    pub fn effective_recv_batch(&self) -> usize {
+        self.recv_batch.clamp(1, 1024)
     }
 
     /// Return an [`XorCipher`] if XOR obfuscation is enabled, or `None`.

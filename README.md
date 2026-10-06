@@ -485,6 +485,9 @@ The manager script generates a fully-commented config file covering every option
 | `channel_capacity` | both | `8192` | Per-tunnel async channel capacity |
 | `io_channel_capacity` | both | `16384` | Raw I/O and mux queue capacity |
 | `runtime_worker_threads` | both | `0` | Tokio worker threads (0 = auto) |
+| `send_threads` | both | `0` | Parallel raw-socket send threads (0 = auto: one per core, cap 8). Scales packet building/sending across cores |
+| `send_batch` | both | `64` | Packets coalesced per `sendmmsg` syscall |
+| `recv_batch` | both | `64` | Datagrams pulled per `recvmmsg` syscall |
 
 ### Logging
 
@@ -519,6 +522,23 @@ NIC speed tiers add extra tunnels: **+1** at 1 Gbps · **+2** at 2 Gbps · **+3*
 - **`spoofed_ip_pool`** with 3–5 addresses distributes traffic and resists rate-limiting
 - **Build with `target-cpu=native`** to unlock AVX2/NEON SIMD for ChaCha20 and FEC
 
+### Chasing high throughput (e.g. 500 Mbit+)
+
+Raw bandwidth is bounded by how fast packets are built and pushed through the
+raw sockets. For bulk speed:
+
+- Use **UDP** transport (`uplink_protocol = downlink_protocol = "udp"`) — QUIC/TCP are slower here.
+- Keep `send_threads = 0` (auto: one send shard per core) or set it explicitly on
+  high-core boxes; this is the single biggest lever — it spreads packet
+  building + `sendmmsg` across cores.
+- Leave `enable_fec = false` and `perf_mode = "throughput"`.
+- Raise `mtu` toward your true path MTU so there are fewer, larger packets.
+- If your ISP's egress filtering (BCP 38) drops spoofed sources, throughput can
+  collapse regardless — where evasion isn't strictly required, no-spoof mode
+  avoids that.
+- Always measure the real figure with **`iperf3` through the tunnel** — CPU, RTT
+  and loss dominate the result.
+
 ### Internal optimisations
 
 | Feature | Impact |
@@ -529,6 +549,8 @@ NIC speed tiers add extra tunnels: **+1** at 1 Gbps · **+2** at 2 Gbps · **+3*
 | **4 MB socket buffers** | `SO_SNDBUF`/`SO_RCVBUF` set to 4 MiB — absorbs 1 Gbps+ bursts |
 | **Atomic IP ID counter** | Replaces `rand::random()` per packet with a wrapping `AtomicU16` (~10× faster) |
 | **ChaCha20 stream cipher** | 3–8 GB/s vs ~700 MB/s for the previous SHA-256 CTR design |
+| **Multi-threaded sharded send** | Outbound packets are built and transmitted by `send_threads` parallel shards (each with its own raw socket), so sending scales across CPU cores instead of a single thread — the old throughput ceiling |
+| **`sendmmsg` / `recvmmsg` batching** | Up to `send_batch` packets leave per send syscall and up to `recv_batch` arrive per receive syscall, slashing per-packet syscall overhead on the hot path |
 | **SYN handshake retransmission** | The client re-sends its SYN every 500 ms until the SYN-ACK arrives (≈15 s budget), so one dropped handshake packet on a lossy/filtered path no longer fails startup |
 | **Overhead-aware TUN MTU** | The effective TUN MTU is auto-clamped for the XOR nonce, DPI padding, and mux/encapsulation headers so a full-size packet rides in a single un-fragmented wire frame |
 | **DF bit cleared** | Avoids silent black-holes when path MTU < configured MTU |

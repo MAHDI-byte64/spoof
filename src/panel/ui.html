@@ -487,7 +487,8 @@ function FORM(){return [
    ["tun_mtu","num"],["interface","text"],["forward_ports","ports"]]},
  {g:"g_perf",f:[
    ["perf_mode","select","perf"],["auto_tune","bool"],["tunnel_count","num"],["mtu","num"],
-   ["channel_capacity","num"],["io_channel_capacity","num"],["runtime_worker_threads","num"]]},
+   ["channel_capacity","num"],["io_channel_capacity","num"],["runtime_worker_threads","num"],
+   ["send_threads","num"],["send_batch","num"],["recv_batch","num"]]},
  {g:"g_log",f:[["log_level","select","log"]]},
 ];}
 const PRETTY=k=>k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
@@ -559,6 +560,7 @@ function openNew(){
     quic_idle_timeout_ms:30000,quic_max_data:134217728,quic_max_stream_data:16777216,quic_max_streams_bidi:256,
     packet_padding_max:64,tun_name:"candy0",tun_netmask:"255.255.255.252",tun_mtu:1380,mtu:1380,interface:"eth0",
     perf_mode:"throughput",auto_tune:true,tunnel_count:4,channel_capacity:8192,io_channel_capacity:16384,log_level:"info",
+    send_threads:0,send_batch:64,recv_batch:64,
     tun_ip:"10.66.0.1",tun_peer_ip:"10.66.0.2"});
   openEditCard();
 }

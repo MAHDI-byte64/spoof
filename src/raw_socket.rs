@@ -189,43 +189,53 @@ pub struct RawSender {
 }
 
 impl RawSender {
-    /// Spawn the background sender thread and return a `RawSender` handle.
-    ///
-    /// When `xor` is `Some`, every outgoing packet payload is XOR-encrypted.
-    /// `dpi` controls optional DPI obfuscation (padding, TTL jitter, etc.).
+    /// Backwards-compatible single-thread spawn with default batching.
     pub fn spawn(capacity: usize, xor: Option<XorCipher>, dpi: DpiObfuscation) -> Result<Self> {
+        Self::spawn_sharded(capacity, xor, dpi, 1, 64)
+    }
+
+    /// Spawn `threads` parallel sender shards and return a `RawSender` handle.
+    ///
+    /// Every shard owns its own raw socket and drains the shared MPMC queue,
+    /// coalescing up to `batch` already-queued packets into a single
+    /// `sendmmsg(2)` syscall. This lets packet building + transmission scale
+    /// across CPU cores instead of funnelling through one thread/one syscall
+    /// per packet — the dominant throughput ceiling of the old design.
+    ///
+    /// When `xor` is `Some`, every outgoing payload is XOR-encrypted.
+    /// `dpi` controls optional DPI obfuscation (padding, TTL jitter, etc.).
+    pub fn spawn_sharded(
+        capacity: usize,
+        xor: Option<XorCipher>,
+        dpi: DpiObfuscation,
+        threads: usize,
+        batch: usize,
+    ) -> Result<Self> {
+        let threads = threads.max(1);
+        let batch = batch.max(1);
         log::debug!(
-            "raw sender spawn capacity={} xor={} padding={} ttl_jitter={} fake_tls={} dscp={}",
-            capacity.max(1), xor.is_some(),
+            "raw sender spawn capacity={} threads={} batch={} xor={} padding={} ttl_jitter={} fake_tls={} dscp={}",
+            capacity.max(1), threads, batch, xor.is_some(),
             dpi.packet_padding, dpi.ttl_jitter, dpi.fake_tls_header, dpi.random_dscp,
         );
-        let fd = create_raw_send_socket()?;
         let cap = capacity.max(1);
         let (tx, rx): (mpsc::Sender<OutPacket>, mpsc::Receiver<OutPacket>) = mpsc::bounded(cap);
 
-        std::thread::Builder::new()
-            .name("raw-send".into())
-            .spawn(move || {
-                while let Ok(out) = rx.recv_blocking() {
-                    // 1. Optionally apply fake TLS header (TCP only, before XOR).
-                    let out = if dpi.fake_tls_header { apply_fake_tls(out) } else { out };
-                    // 2. Optionally append random padding (before XOR so padding is encrypted).
-                    let out = if dpi.packet_padding {
-                        apply_padding(out, dpi.packet_padding_max)
-                    } else { out };
-                    // 3. Optionally XOR-encrypt.
-                    let out = match &xor {
-                        Some(cipher) => encrypt_out_packet(out, cipher),
-                        None => out,
-                    };
-                    // 4. Build and send the wire packet (TTL jitter + DSCP applied inside).
-                    if let Err(e) = send_out_packet(fd, out, &dpi) {
-                        log::warn!("raw-send error: {}", e);
-                    }
-                }
-                unsafe { libc::close(fd) };
-            })
-            .context("spawn raw send thread")?;
+        for shard in 0..threads {
+            // Each shard opens its own send socket so there is no shared fd
+            // contention between threads.
+            let fd = create_raw_send_socket()?;
+            let rx = rx.clone();
+            let xor = xor.clone();
+            let dpi = dpi.clone();
+            std::thread::Builder::new()
+                .name(format!("raw-send-{}", shard))
+                .spawn(move || {
+                    send_shard_loop(fd, rx, xor, dpi, batch);
+                    unsafe { libc::close(fd) };
+                })
+                .context("spawn raw send thread")?;
+        }
 
         Ok(Self { tx })
     }
@@ -233,6 +243,52 @@ impl RawSender {
     /// Enqueue an [`OutPacket`] for transmission.
     pub async fn send(&self, pkt: OutPacket) -> Result<()> {
         self.tx.send(pkt).await.context("raw sender closed")
+    }
+}
+
+/// One send shard: block for a packet, greedily drain the rest of the queued
+/// backlog (bounded by `batch`), prepare each into wire bytes, and transmit the
+/// whole batch with a single `sendmmsg`.
+fn send_shard_loop(
+    fd: RawFd,
+    rx: mpsc::Receiver<OutPacket>,
+    xor: Option<XorCipher>,
+    dpi: DpiObfuscation,
+    batch: usize,
+) {
+    // Reusable scratch buffers to avoid per-iteration allocation.
+    let mut prepared: Vec<(Vec<u8>, libc::sockaddr_in)> = Vec::with_capacity(batch);
+    loop {
+        let first = match rx.recv_blocking() {
+            Ok(p) => p,
+            Err(_) => break,
+        };
+        prepared.clear();
+        if let Some(p) = prepare_out(first, &xor, &dpi) {
+            prepared.push(p);
+        }
+        // Drain whatever else is already queued, up to the batch limit.
+        while prepared.len() < batch {
+            match rx.try_recv() {
+                Ok(p) => {
+                    if let Some(p) = prepare_out(p, &xor, &dpi) {
+                        prepared.push(p);
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        if prepared.is_empty() {
+            continue;
+        }
+        if prepared.len() == 1 {
+            // Single packet: a plain sendto avoids mmsghdr setup overhead.
+            if let Err(e) = raw_sendto_sa(fd, &prepared[0].0, &prepared[0].1) {
+                log::warn!("raw-send error: {}", e);
+            }
+        } else {
+            send_batch_mmsg(fd, &prepared);
+        }
     }
 }
 
@@ -264,15 +320,18 @@ impl RawReceiver {
         capacity:    usize,
         xor:         Option<XorCipher>,
         dpi:         DpiObfuscation,
+        recv_batch:  usize,
     ) -> Result<Self> {
+        let recv_batch = recv_batch.max(1);
         log::debug!(
-            "raw receiver spawn proto={:?} allow_any_icmp_id={} allowed_peers={} mux_fec={} xor={} padding={}",
+            "raw receiver spawn proto={:?} allow_any_icmp_id={} allowed_peers={} mux_fec={} xor={} padding={} recv_batch={}",
             protocol,
             allow_any_icmp_id,
             allowed.len(),
             mux_fec.is_enabled(),
             xor.is_some(),
             dpi.packet_padding,
+            recv_batch,
         );
         let cap = capacity.max(1);
         let (tx, rx): (mpsc::Sender<InPacket>, mpsc::Receiver<InPacket>) = mpsc::bounded(cap);
@@ -291,7 +350,7 @@ impl RawReceiver {
                 std::thread::Builder::new()
                     .name("raw-recv-udp".into())
                     .spawn(move || {
-                        udp_recv_loop(udp_fd, port_filter2, &allowed2, tx2, mux_fec2, xor2.as_ref(), padding);
+                        udp_recv_loop(udp_fd, port_filter2, &allowed2, tx2, mux_fec2, xor2.as_ref(), padding, recv_batch);
                     })
                     .context("spawn udp recv thread")?;
             }
@@ -306,7 +365,7 @@ impl RawReceiver {
                     .spawn(move || {
                         icmp_recv_loop(
                             icmp_fd, icmp_id, allow_any_icmp_id,
-                            &allowed2, tx2, mux_fec2, xor2.as_ref(), padding,
+                            &allowed2, tx2, mux_fec2, xor2.as_ref(), padding, recv_batch,
                         );
                     })
                     .context("spawn icmp recv thread")?;
@@ -320,7 +379,7 @@ impl RawReceiver {
                 std::thread::Builder::new()
                     .name("raw-recv-proto58".into())
                     .spawn(move || {
-                        proto58_recv_loop(proto_fd, &allowed2, tx2, mux_fec2, xor2.as_ref(), padding);
+                        proto58_recv_loop(proto_fd, &allowed2, tx2, mux_fec2, xor2.as_ref(), padding, recv_batch);
                     })
                     .context("spawn proto58 recv thread")?;
             }
@@ -333,7 +392,7 @@ impl RawReceiver {
                 std::thread::Builder::new()
                     .name("raw-recv-tcp".into())
                     .spawn(move || {
-                        tcp_recv_loop(tcp_fd, port_filter2, &allowed2, tx2, xor2.as_ref(), padding, fake_tls);
+                        tcp_recv_loop(tcp_fd, port_filter2, &allowed2, tx2, xor2.as_ref(), padding, fake_tls, recv_batch);
                     })
                     .context("spawn tcp recv thread")?;
             }
@@ -346,7 +405,7 @@ impl RawReceiver {
                 std::thread::Builder::new()
                     .name("raw-recv-ipip".into())
                     .spawn(move || {
-                        ipip_recv_loop(ipip_fd, &allowed2, tx2, mux_fec2, xor2.as_ref(), padding);
+                        ipip_recv_loop(ipip_fd, &allowed2, tx2, mux_fec2, xor2.as_ref(), padding, recv_batch);
                     })
                     .context("spawn ipip recv thread")?;
             }
@@ -360,7 +419,7 @@ impl RawReceiver {
                 std::thread::Builder::new()
                     .name("raw-recv-gre".into())
                     .spawn(move || {
-                        gre_recv_loop(gre_fd, &allowed2, tx2, mux_fec2, xor2.as_ref(), padding);
+                        gre_recv_loop(gre_fd, &allowed2, tx2, mux_fec2, xor2.as_ref(), padding, recv_batch);
                     })
                     .context("spawn gre recv thread")?;
             }
@@ -459,43 +518,108 @@ fn create_raw_recv_socket(proto: libc::c_int) -> Result<RawFd> {
 
 // ── Packet transmission ───────────────────────────────────────────────────────
 
-fn send_out_packet(fd: RawFd, out: OutPacket, dpi: &DpiObfuscation) -> Result<()> {
+/// Apply the obfuscation pipeline and build the final wire bytes + destination
+/// `sockaddr_in` for one outgoing packet. Returns `None` only on an impossible
+/// state (kept as an `Option` so a bad packet is skipped, not fatal).
+fn prepare_out(
+    out: OutPacket,
+    xor: &Option<XorCipher>,
+    dpi: &DpiObfuscation,
+) -> Option<(Vec<u8>, libc::sockaddr_in)> {
+    // 1. Fake TLS header (TCP only, before XOR).
+    let out = if dpi.fake_tls_header { apply_fake_tls(out) } else { out };
+    // 2. Random padding (before XOR so the padding is encrypted too).
+    let out = if dpi.packet_padding { apply_padding(out, dpi.packet_padding_max) } else { out };
+    // 3. XOR / ChaCha20 encryption.
+    let out = match xor {
+        Some(cipher) => encrypt_out_packet(out, cipher),
+        None => out,
+    };
+    // 4. Build the raw IPv4 packet and patch TTL/DSCP.
+    let (mut raw, dst) = build_raw(out);
+    patch_ip_header(&mut raw, dpi);
+    Some((raw, dst_sockaddr(dst)))
+}
+
+/// Build the raw wire bytes for an [`OutPacket`], returning them with the
+/// destination address.
+fn build_raw(out: OutPacket) -> (Vec<u8>, Ipv4Addr) {
     match out {
-        OutPacket::Udp { src_ip, dst_ip, src_port, dst_port, payload } => {
-            let mut raw = build_udp_packet(src_ip, dst_ip, src_port, dst_port, &payload);
-            patch_ip_header(&mut raw, dpi);
-            raw_sendto(fd, &raw, dst_ip)
+        OutPacket::Udp { src_ip, dst_ip, src_port, dst_port, payload } =>
+            (build_udp_packet(src_ip, dst_ip, src_port, dst_port, &payload), dst_ip),
+        OutPacket::Icmp { src_ip, dst_ip, id, seq, payload } =>
+            (build_icmp_echo(src_ip, dst_ip, id, seq, &payload, false), dst_ip),
+        OutPacket::IcmpReply { src_ip, dst_ip, id, seq, payload } =>
+            (build_icmp_echo(src_ip, dst_ip, id, seq, &payload, true), dst_ip),
+        OutPacket::Proto58 { src_ip, dst_ip, payload } =>
+            (build_proto58_packet(src_ip, dst_ip, &payload), dst_ip),
+        OutPacket::Tcp { src_ip, dst_ip, src_port, dst_port, seq, ack, flags, payload } =>
+            (build_tcp_packet(src_ip, dst_ip, src_port, dst_port, seq, ack, flags, &payload), dst_ip),
+        OutPacket::Ipip { src_ip, dst_ip, payload } =>
+            (build_ipip_packet(src_ip, dst_ip, &payload), dst_ip),
+        OutPacket::Gre { src_ip, dst_ip, payload } =>
+            (build_gre_packet(src_ip, dst_ip, &payload), dst_ip),
+    }
+}
+
+fn dst_sockaddr(dst: Ipv4Addr) -> libc::sockaddr_in {
+    let mut addr: libc::sockaddr_in = unsafe { std::mem::zeroed() };
+    addr.sin_family = libc::AF_INET as libc::sa_family_t;
+    addr.sin_port = 0;
+    addr.sin_addr = libc::in_addr { s_addr: u32::from(dst).to_be() };
+    addr
+}
+
+/// Transmit a batch of prepared packets with a single `sendmmsg(2)` syscall
+/// (looping to cover partial sends). Falls back to logging on hard errors.
+fn send_batch_mmsg(fd: RawFd, prepared: &[(Vec<u8>, libc::sockaddr_in)]) {
+    let n = prepared.len();
+    if n == 0 {
+        return;
+    }
+
+    // iovecs must be fully materialised before we take pointers into them.
+    let mut iovs: Vec<libc::iovec> = Vec::with_capacity(n);
+    for (buf, _) in prepared {
+        iovs.push(libc::iovec {
+            iov_base: buf.as_ptr() as *mut libc::c_void,
+            iov_len: buf.len(),
+        });
+    }
+    let iov_ptr = iovs.as_mut_ptr();
+
+    let mut msgs: Vec<libc::mmsghdr> = Vec::with_capacity(n);
+    for (i, (_, addr)) in prepared.iter().enumerate() {
+        let mut hdr: libc::msghdr = unsafe { std::mem::zeroed() };
+        hdr.msg_name = addr as *const libc::sockaddr_in as *mut libc::c_void;
+        hdr.msg_namelen = std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t;
+        hdr.msg_iov = unsafe { iov_ptr.add(i) };
+        hdr.msg_iovlen = 1;
+        msgs.push(libc::mmsghdr { msg_hdr: hdr, msg_len: 0 });
+    }
+
+    let mut sent = 0usize;
+    while sent < n {
+        let r = unsafe {
+            libc::sendmmsg(
+                fd,
+                msgs.as_mut_ptr().add(sent),
+                (n - sent) as libc::c_uint,
+                0,
+            )
+        };
+        if r < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            log::warn!("sendmmsg error after {}/{}: {}", sent, n, err);
+            break;
         }
-        OutPacket::Icmp { src_ip, dst_ip, id, seq, payload } => {
-            let mut raw = build_icmp_echo(src_ip, dst_ip, id, seq, &payload, false);
-            patch_ip_header(&mut raw, dpi);
-            raw_sendto(fd, &raw, dst_ip)
+        if r == 0 {
+            break;
         }
-        OutPacket::IcmpReply { src_ip, dst_ip, id, seq, payload } => {
-            let mut raw = build_icmp_echo(src_ip, dst_ip, id, seq, &payload, true);
-            patch_ip_header(&mut raw, dpi);
-            raw_sendto(fd, &raw, dst_ip)
-        }
-        OutPacket::Proto58 { src_ip, dst_ip, payload } => {
-            let mut raw = build_proto58_packet(src_ip, dst_ip, &payload);
-            patch_ip_header(&mut raw, dpi);
-            raw_sendto(fd, &raw, dst_ip)
-        }
-        OutPacket::Tcp { src_ip, dst_ip, src_port, dst_port, seq, ack, flags, payload } => {
-            let mut raw = build_tcp_packet(src_ip, dst_ip, src_port, dst_port, seq, ack, flags, &payload);
-            patch_ip_header(&mut raw, dpi);
-            raw_sendto(fd, &raw, dst_ip)
-        }
-        OutPacket::Ipip { src_ip, dst_ip, payload } => {
-            let mut raw = build_ipip_packet(src_ip, dst_ip, &payload);
-            patch_ip_header(&mut raw, dpi);
-            raw_sendto(fd, &raw, dst_ip)
-        }
-        OutPacket::Gre { src_ip, dst_ip, payload } => {
-            let mut raw = build_gre_packet(src_ip, dst_ip, &payload);
-            patch_ip_header(&mut raw, dpi);
-            raw_sendto(fd, &raw, dst_ip)
-        }
+        sent += r as usize;
     }
 }
 
@@ -637,26 +761,29 @@ fn encrypt_out_packet(pkt: OutPacket, cipher: &XorCipher) -> OutPacket {
     }
 }
 
-fn raw_sendto(fd: RawFd, data: &[u8], dst: Ipv4Addr) -> Result<()> {
-    let mut addr: libc::sockaddr_in = unsafe { std::mem::zeroed() };
-    addr.sin_family = libc::AF_INET as libc::sa_family_t;
-    addr.sin_port   = 0;
-    addr.sin_addr   = libc::in_addr { s_addr: u32::from(dst).to_be() };
-
-    let n = unsafe {
-        libc::sendto(
-            fd,
-            data.as_ptr() as *const libc::c_void,
-            data.len(),
-            0,
-            &addr as *const libc::sockaddr_in as *const libc::sockaddr,
-            std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
-        )
-    };
-    if n < 0 {
-        return Err(std::io::Error::last_os_error()).context("sendto failed");
+/// Single-packet transmit with a prebuilt destination address (the batch
+/// fast-path for when only one packet is queued).
+fn raw_sendto_sa(fd: RawFd, data: &[u8], addr: &libc::sockaddr_in) -> Result<()> {
+    loop {
+        let n = unsafe {
+            libc::sendto(
+                fd,
+                data.as_ptr() as *const libc::c_void,
+                data.len(),
+                0,
+                addr as *const libc::sockaddr_in as *const libc::sockaddr,
+                std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
+            )
+        };
+        if n < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(err).context("sendto failed");
+        }
+        return Ok(());
     }
-    Ok(())
 }
 
 // ── Packet reception loops ────────────────────────────────────────────────────
@@ -669,15 +796,12 @@ fn udp_recv_loop(
     mux_fec:   MuxFecConfig,
     xor:       Option<&XorCipher>,
     padding:   bool,
+    batch:     usize,
 ) {
-    let mut buf = vec![0u8; 65535];
+    let mut reader = MmsgReceiver::new(fd, batch);
     let mut fec_state = if mux_fec.enable_fec { Some(FecDecoder::new()) } else { None };
     loop {
-        let (n, src_ip) = match raw_recvfrom(fd, &mut buf) {
-            Ok(v)  => v,
-            Err(e) => { log::warn!("udp recvfrom: {}", e); continue; }
-        };
-        let data = &buf[..n];
+        let (src_ip, data) = reader.recv_one();
 
         // Validate source IP against whitelist
         if !is_allowed(src_ip, allowed) {
@@ -789,15 +913,12 @@ fn icmp_recv_loop(
     mux_fec: MuxFecConfig,
     xor:     Option<&XorCipher>,
     padding: bool,
+    batch:   usize,
 ) {
-    let mut buf = vec![0u8; 65535];
+    let mut reader = MmsgReceiver::new(fd, batch);
     let mut fec_state = if mux_fec.enable_fec { Some(FecDecoder::new()) } else { None };
     loop {
-        let (n, src_ip) = match raw_recvfrom(fd, &mut buf) {
-            Ok(v)  => v,
-            Err(e) => { log::warn!("icmp recvfrom: {}", e); continue; }
-        };
-        let data = &buf[..n];
+        let (src_ip, data) = reader.recv_one();
 
         if !is_allowed(src_ip, allowed) {
             log::trace!("icmp drop src_not_allowed={}", src_ip);
@@ -861,15 +982,12 @@ fn proto58_recv_loop(
     mux_fec: MuxFecConfig,
     xor:     Option<&XorCipher>,
     padding: bool,
+    batch:   usize,
 ) {
-    let mut buf = vec![0u8; 65535];
+    let mut reader = MmsgReceiver::new(fd, batch);
     let mut fec_state = if mux_fec.enable_fec { Some(FecDecoder::new()) } else { None };
     loop {
-        let (n, src_ip) = match raw_recvfrom(fd, &mut buf) {
-            Ok(v)  => v,
-            Err(e) => { log::warn!("proto58 recvfrom: {}", e); continue; }
-        };
-        let data = &buf[..n];
+        let (src_ip, data) = reader.recv_one();
 
         if !is_allowed(src_ip, allowed) {
             log::trace!("proto58 drop src_not_allowed={}", src_ip);
@@ -922,15 +1040,12 @@ fn ipip_recv_loop(
     mux_fec: MuxFecConfig,
     xor:     Option<&XorCipher>,
     padding: bool,
+    batch:   usize,
 ) {
-    let mut buf = vec![0u8; 65535];
+    let mut reader = MmsgReceiver::new(fd, batch);
     let mut fec_state = if mux_fec.enable_fec { Some(FecDecoder::new()) } else { None };
     loop {
-        let (n, src_ip) = match raw_recvfrom(fd, &mut buf) {
-            Ok(v)  => v,
-            Err(e) => { log::warn!("ipip recvfrom: {}", e); continue; }
-        };
-        let data = &buf[..n];
+        let (src_ip, data) = reader.recv_one();
 
         if !is_allowed(src_ip, allowed) {
             log::trace!("ipip drop src_not_allowed={}", src_ip);
@@ -983,15 +1098,12 @@ fn gre_recv_loop(
     mux_fec: MuxFecConfig,
     xor:     Option<&XorCipher>,
     padding: bool,
+    batch:   usize,
 ) {
-    let mut buf = vec![0u8; 65535];
+    let mut reader = MmsgReceiver::new(fd, batch);
     let mut fec_state = if mux_fec.enable_fec { Some(FecDecoder::new()) } else { None };
     loop {
-        let (n, src_ip) = match raw_recvfrom(fd, &mut buf) {
-            Ok(v)  => v,
-            Err(e) => { log::warn!("gre recvfrom: {}", e); continue; }
-        };
-        let data = &buf[..n];
+        let (src_ip, data) = reader.recv_one();
 
         if !is_allowed(src_ip, allowed) {
             log::trace!("gre drop src_not_allowed={}", src_ip);
@@ -1048,14 +1160,11 @@ fn tcp_recv_loop(
     xor:       Option<&XorCipher>,
     padding:   bool,
     fake_tls:  bool,
+    batch:     usize,
 ) {
-    let mut buf = vec![0u8; 65535];
+    let mut reader = MmsgReceiver::new(fd, batch);
     loop {
-        let (n, src_ip) = match raw_recvfrom(fd, &mut buf) {
-            Ok(v)  => v,
-            Err(e) => { log::warn!("tcp recvfrom: {}", e); continue; }
-        };
-        let data = &buf[..n];
+        let (src_ip, data) = reader.recv_one();
 
         if !is_allowed(src_ip, allowed) {
             log::trace!("tcp drop src_not_allowed={}", src_ip);
@@ -1131,6 +1240,102 @@ fn is_allowed(ip: Ipv4Addr, allowed: &[Ipv4Addr]) -> bool {
         true
     } else {
         allowed.contains(&ip)
+    }
+}
+
+/// Batched raw-socket reader built on `recvmmsg(2)`.
+///
+/// Reads up to `batch` datagrams per syscall (returning as soon as at least one
+/// is ready, via `MSG_WAITFORONE`) and hands them out one at a time. This cuts
+/// the per-packet syscall count on the receive hot path N-fold. Buffers are
+/// allocated once and reused.
+struct MmsgReceiver {
+    fd: RawFd,
+    batch: usize,
+    bufs: Vec<Vec<u8>>,
+    addrs: Vec<libc::sockaddr_in>,
+    iovs: Vec<libc::iovec>,
+    msgs: Vec<libc::mmsghdr>,
+    ready: usize,
+    next: usize,
+}
+
+impl MmsgReceiver {
+    fn new(fd: RawFd, batch: usize) -> Self {
+        let batch = batch.max(1);
+        let mut bufs: Vec<Vec<u8>> = (0..batch).map(|_| vec![0u8; 65535]).collect();
+        let addrs: Vec<libc::sockaddr_in> = (0..batch).map(|_| unsafe { std::mem::zeroed() }).collect();
+        // iovecs are stable for the lifetime of the receiver: one per buffer.
+        let iovs: Vec<libc::iovec> = bufs
+            .iter_mut()
+            .map(|b| libc::iovec {
+                iov_base: b.as_mut_ptr() as *mut libc::c_void,
+                iov_len: b.len(),
+            })
+            .collect();
+        Self {
+            fd,
+            batch,
+            bufs,
+            addrs,
+            iovs,
+            msgs: Vec::with_capacity(batch),
+            ready: 0,
+            next: 0,
+        }
+    }
+
+    /// Block until at least one datagram is available, then return the next
+    /// `(source IP, payload bytes)`. The slice borrows the receiver's internal
+    /// buffer and is valid only until the next call.
+    fn recv_one(&mut self) -> (Ipv4Addr, &[u8]) {
+        if self.next >= self.ready {
+            self.fill();
+        }
+        let i = self.next;
+        self.next += 1;
+        let len = (self.msgs[i].msg_len as usize).min(self.bufs[i].len());
+        let ip = Ipv4Addr::from(u32::from_be(self.addrs[i].sin_addr.s_addr));
+        (ip, &self.bufs[i][..len])
+    }
+
+    /// Refill `msgs`/`ready` with a fresh `recvmmsg`, retrying transient errors
+    /// so that on return `self.ready >= 1`.
+    fn fill(&mut self) {
+        let n = self.batch;
+        loop {
+            self.msgs.clear();
+            let iov_ptr = self.iovs.as_mut_ptr();
+            let namelen = std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t;
+            for i in 0..n {
+                let mut hdr: libc::msghdr = unsafe { std::mem::zeroed() };
+                hdr.msg_name = (&mut self.addrs[i]) as *mut libc::sockaddr_in as *mut libc::c_void;
+                hdr.msg_namelen = namelen;
+                hdr.msg_iov = unsafe { iov_ptr.add(i) };
+                hdr.msg_iovlen = 1;
+                self.msgs.push(libc::mmsghdr { msg_hdr: hdr, msg_len: 0 });
+            }
+            let r = unsafe {
+                libc::recvmmsg(
+                    self.fd,
+                    self.msgs.as_mut_ptr(),
+                    n as libc::c_uint,
+                    libc::MSG_WAITFORONE,
+                    std::ptr::null_mut(),
+                )
+            };
+            if r > 0 {
+                self.ready = r as usize;
+                self.next = 0;
+                return;
+            }
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            log::warn!("recvmmsg: {}", err);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
     }
 }
 

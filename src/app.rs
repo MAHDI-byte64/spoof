@@ -130,7 +130,13 @@ pub async fn run_client(cfg: Arc<Config>) -> Result<()> {
     let dpi = cfg.dpi_obfuscation();
     log::debug!("client xor_encryption={} dpi_padding={} ttl_jitter={} fake_tls={} dscp={}",
         xor_cipher.is_some(), dpi.packet_padding, dpi.ttl_jitter, dpi.fake_tls_header, dpi.random_dscp);
-    let sender = RawSender::spawn(cfg.io_channel_capacity, xor_cipher.clone(), dpi.clone())?;
+    let sender = RawSender::spawn_sharded(
+        cfg.io_channel_capacity,
+        xor_cipher.clone(),
+        dpi.clone(),
+        cfg.effective_send_threads(),
+        cfg.effective_send_batch(),
+    )?;
 
     let mut allowed = cfg.allowed_peers.clone();
     allowed.push(cfg.peer_real_ip);
@@ -151,6 +157,7 @@ pub async fn run_client(cfg: Arc<Config>) -> Result<()> {
             cfg.io_channel_capacity,
             xor_cipher,
             dpi,
+            cfg.effective_recv_batch(),
         )?;
         let peer_addr = PeerAddr {
             local_spoof: cfg.pick_spoofed_ip(),
@@ -267,7 +274,13 @@ pub async fn run_server(cfg: Arc<Config>, allow_any: bool) -> Result<()> {
     let dpi = cfg.dpi_obfuscation();
     log::debug!("server xor_encryption={} dpi_padding={} ttl_jitter={} fake_tls={} dscp={}",
         xor_cipher.is_some(), dpi.packet_padding, dpi.ttl_jitter, dpi.fake_tls_header, dpi.random_dscp);
-    let sender = RawSender::spawn(cfg.io_channel_capacity, xor_cipher.clone(), dpi.clone())?;
+    let sender = RawSender::spawn_sharded(
+        cfg.io_channel_capacity,
+        xor_cipher.clone(),
+        dpi.clone(),
+        cfg.effective_send_threads(),
+        cfg.effective_send_batch(),
+    )?;
 
     let mut allowed = if allow_any { Vec::new() } else { cfg.allowed_peers.clone() };
     if !allow_any {
@@ -290,6 +303,7 @@ pub async fn run_server(cfg: Arc<Config>, allow_any: bool) -> Result<()> {
             cfg.io_channel_capacity,
             xor_cipher,
             dpi,
+            cfg.effective_recv_batch(),
         )?;
         let peer_addr = PeerAddr {
             local_spoof: cfg.pick_spoofed_ip(),

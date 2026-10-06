@@ -126,6 +126,12 @@ pub struct PanelInstance {
     pub io_channel_capacity: usize,
     #[serde(default)]
     pub runtime_worker_threads: usize,
+    #[serde(default)]
+    pub send_threads: usize,
+    #[serde(default = "d_send_batch")]
+    pub send_batch: usize,
+    #[serde(default = "d_recv_batch")]
+    pub recv_batch: usize,
 
     #[serde(default = "d_log")]
     pub log_level: String,
@@ -158,6 +164,8 @@ fn d_perf() -> String { "throughput".into() }
 fn d_tunnels() -> usize { 4 }
 fn d_chan() -> usize { 8192 }
 fn d_iochan() -> usize { 16384 }
+fn d_send_batch() -> usize { 64 }
+fn d_recv_batch() -> usize { 64 }
 fn d_log() -> String { "info".into() }
 
 fn cfg_path(state: &PanelState, name: &str) -> PathBuf {

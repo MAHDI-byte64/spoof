@@ -90,6 +90,7 @@ pub async fn run_spoof_check(cfg: Arc<Config>, opts: CheckOptions) -> Result<()>
         cfg.io_channel_capacity,
         cfg.xor_cipher(),
         cfg.dpi_obfuscation(),
+        cfg.effective_recv_batch(),
     )?;
 
     // tunnel_id -> notifier that the matching SYN-ACK has arrived.
