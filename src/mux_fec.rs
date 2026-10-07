@@ -527,7 +527,7 @@ impl Encoder {
     async fn send_wire(&mut self, payload: Bytes) -> Result<()> {
         let out = match self.protocol {
             crate::config::TunnelProtocol::Udp => OutPacket::Udp {
-                src_ip: self.addr.local_spoof,
+                src_ip: self.addr.local_spoof.next(),
                 dst_ip: self.addr.peer_real,
                 src_port: self.addr.pick_data_port(),
                 dst_port: self.addr.pick_data_port(),
@@ -537,7 +537,7 @@ impl Encoder {
                 let seq = self.icmp_seq;
                 self.icmp_seq = self.icmp_seq.wrapping_add(1);
                 OutPacket::Icmp {
-                    src_ip: self.addr.local_spoof,
+                    src_ip: self.addr.local_spoof.next(),
                     dst_ip: self.addr.peer_real,
                     id: self.addr.pick_icmp_id(),
                     seq,
@@ -546,21 +546,21 @@ impl Encoder {
             }
             crate::config::TunnelProtocol::Proto58 => {
                 OutPacket::Proto58 {
-                    src_ip: self.addr.local_spoof,
+                    src_ip: self.addr.local_spoof.next(),
                     dst_ip: self.addr.peer_real,
                     payload,
                 }
             }
             crate::config::TunnelProtocol::Ipip => {
                 OutPacket::Ipip {
-                    src_ip: self.addr.local_spoof,
+                    src_ip: self.addr.local_spoof.next(),
                     dst_ip: self.addr.peer_real,
                     payload,
                 }
             }
             crate::config::TunnelProtocol::Gre => {
                 OutPacket::Gre {
-                    src_ip: self.addr.local_spoof,
+                    src_ip: self.addr.local_spoof.next(),
                     dst_ip: self.addr.peer_real,
                     payload,
                 }

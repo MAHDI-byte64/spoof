@@ -78,7 +78,7 @@ pub async fn run_spoof_check(cfg: Arc<Config>, opts: CheckOptions) -> Result<()>
 
     let mut allowed = cfg.allowed_peers.clone();
     allowed.push(cfg.peer_real_ip);
-    allowed.push(cfg.peer_spoofed_ip);
+    allowed.extend(cfg.peer_spoofed_ips());
 
     let mut receiver = RawReceiver::spawn(
         cfg.downlink_protocol,

@@ -64,6 +64,52 @@ struct Args {
 enum Command {
     /// Run the bilingual web management panel.
     Panel(PanelArgs),
+    /// Find usable spoofed source IPs: run `receiver` on one server, then
+    /// `sender` on the other, then swap.
+    Tester(TesterArgs),
+}
+
+#[derive(Parser, Debug)]
+struct TesterArgs {
+    /// `sender` forges probes; `receiver` counts what arrives.
+    #[arg(value_parser = ["sender", "receiver"])]
+    mode: String,
+
+    /// Probe protocol: tcp (SYN), udp or icmp. Must match on both sides.
+    #[arg(long, default_value = "tcp", value_parser = ["tcp", "udp", "icmp"])]
+    protocol: String,
+
+    /// File of candidate IPs: one per line, CIDR and a-b ranges allowed.
+    #[arg(long)]
+    ips: String,
+
+    /// Sender only: the receiver's real IP.
+    #[arg(long)]
+    target: Option<std::net::Ipv4Addr>,
+
+    /// Destination port for tcp/udp probes. Must match on both sides.
+    #[arg(long, default_value = "443")]
+    port: u16,
+
+    /// Probes per candidate IP. Must match on both sides.
+    #[arg(long, default_value = "10")]
+    packets: u32,
+
+    /// Receiver only: seconds to listen.
+    #[arg(long, default_value = "60")]
+    timeout: u64,
+
+    /// Receiver only: highest loss percent that still passes.
+    #[arg(long, default_value = "20")]
+    max_loss: f64,
+
+    /// Sender only: packets per second (0 = unlimited).
+    #[arg(long, default_value = "3000")]
+    rate: u32,
+
+    /// Receiver only: write the passing IPs here, one per line.
+    #[arg(long)]
+    out: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -94,7 +140,7 @@ fn main() -> Result<()> {
         };
 
         if p.set_password {
-            return set_password(&panel_config);
+            return set_password(&panel_config, p.password.as_deref());
         }
 
         init_logging(args.log_level.as_deref().unwrap_or("info"));
@@ -110,6 +156,11 @@ fn main() -> Result<()> {
             .enable_all()
             .build()?;
         return rt.block_on(run_panel(opts));
+    }
+
+    if let Some(Command::Tester(t)) = &args.command {
+        init_logging(args.log_level.as_deref().unwrap_or("info"));
+        return run_tester_cli(t);
     }
 
     // ── Tunnel / check mode ───────────────────────────────────────────────
@@ -152,4 +203,76 @@ async fn async_main(cfg: Arc<Config>, args: Args) -> Result<()> {
         #[allow(unreachable_patterns)]
         _ => bail!("unknown role"),
     }
+}
+
+fn run_tester_cli(t: &TesterArgs) -> Result<()> {
+    use CandyTunnel::iplist::IpRangeSet;
+    use CandyTunnel::tester::{Mode, Probe, Status, Tester, TesterConfig};
+
+    let text = std::fs::read_to_string(&t.ips)
+        .map_err(|e| anyhow::anyhow!("cannot read {}: {}", t.ips, e))?;
+    let candidates = IpRangeSet::parse(&text)?;
+    let mode = if t.mode == "sender" { Mode::Sender } else { Mode::Receiver };
+    let protocol = match t.protocol.as_str() {
+        "udp" => Probe::Udp,
+        "icmp" => Probe::Icmp,
+        _ => Probe::Tcp,
+    };
+    let cfg = TesterConfig {
+        mode,
+        protocol,
+        target: t.target,
+        port: t.port,
+        packets_per_ip: t.packets,
+        timeout_secs: t.timeout,
+        max_loss_pct: t.max_loss,
+        rate_pps: t.rate,
+    };
+    println!(
+        "{} {} candidate IP(s), {} probe(s) each, protocol {}{}",
+        if mode == Mode::Sender { "sending to" } else { "listening for" },
+        candidates.total(),
+        t.packets,
+        t.protocol,
+        t.target.map(|ip| format!(", target {}", ip)).unwrap_or_default(),
+    );
+
+    let tester = Tester::new();
+    tester.start(cfg, candidates)?;
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+        let st = tester.state();
+        match mode {
+            Mode::Sender => eprint!("\r  {:>3}%  {} probes sent   ", st.progress, st.packets),
+            Mode::Receiver => eprint!(
+                "\r  {:>3}%  {} probes from {} IP(s), {} passing   ",
+                st.progress, st.packets, st.heard_ips, st.passed_ips
+            ),
+        }
+        if st.status != Status::Running {
+            eprintln!();
+            if let Some(err) = st.error {
+                bail!(err);
+            }
+            break;
+        }
+    }
+
+    if mode == Mode::Receiver {
+        let results = tester.results();
+        let passed: Vec<String> = results.iter().filter(|r| r.passed).map(|r| r.ip.to_string()).collect();
+        for r in &results {
+            println!(
+                "{:<15}  {:>2}/{:<2}  loss {:>5.1}%  {}",
+                r.ip, r.received.min(r.expected), r.expected, r.loss_pct,
+                if r.passed { "ok" } else { "-" }
+            );
+        }
+        println!("{} of {} candidate IP(s) passed", passed.len(), tester.state().total_ips);
+        if let Some(out) = &t.out {
+            std::fs::write(out, passed.join("\n") + "\n")?;
+            println!("passing IPs written to {}", out);
+        }
+    }
+    Ok(())
 }
